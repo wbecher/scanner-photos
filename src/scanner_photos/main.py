@@ -1,9 +1,13 @@
 import os
+import sys
 import json
 import base64
 import time
 import subprocess
 import shutil
+import argparse
+import webbrowser
+import threading
 from typing import List, Dict, Any, Optional
 import cv2
 import numpy as np
@@ -17,14 +21,24 @@ import io
 from scanner_photos.scanner import list_devices, perform_scan, is_sane_available
 from scanner_photos.vision import detect_photos, crop_and_deskew, save_photo
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-SCANS_DIR = os.path.join(BASE_DIR, "scans")
-OUTPUT_DIR = os.path.join(BASE_DIR, "output")
-STATIC_DIR = os.path.join(BASE_DIR, "static")
-SETTINGS_FILE = os.path.join(BASE_DIR, "settings.json")
+# Path setup supporting both standard Python execution and PyInstaller frozen binary
+if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+    STATIC_DIR = os.path.join(sys._MEIPASS, "static")
+    CONFIG_DIR = os.path.expanduser("~/.config/scanner-photos")
+    CACHE_DIR = os.path.expanduser("~/.cache/scanner-photos")
+else:
+    BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    STATIC_DIR = os.path.join(BASE_DIR, "static")
+    CONFIG_DIR = BASE_DIR
+    CACHE_DIR = BASE_DIR
+
+SCANS_DIR = os.path.join(CACHE_DIR, "scans")
+OUTPUT_DIR = os.path.expanduser("~/Pictures/Scans")
+SETTINGS_FILE = os.path.join(CONFIG_DIR, "settings.json")
 
 os.makedirs(SCANS_DIR, exist_ok=True)
 os.makedirs(OUTPUT_DIR, exist_ok=True)
+os.makedirs(CONFIG_DIR, exist_ok=True)
 
 # Default settings
 DEFAULT_SETTINGS = {
@@ -537,3 +551,46 @@ def api_save_settings(settings: dict = Body(...)):
 
 # Serve static files
 app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="static")
+
+
+def cli():
+    """
+    Main CLI entrypoint for the standalone binary and package script.
+    """
+    parser = argparse.ArgumentParser(
+        prog="scanner-photos",
+        description="Photo Scanner & Deskew: Multi-photo flatbed scanner and alignment app for Linux"
+    )
+    parser.add_argument("--port", type=int, default=8321, help="Port to run server on (default: 8321)")
+    parser.add_argument("--host", type=str, default="127.0.0.1", help="Host to bind (default: 127.0.0.1)")
+    parser.add_argument("--no-browser", action="store_true", help="Do not open browser window automatically")
+    parser.add_argument("--version", action="version", version="Photo Scanner & Deskew 0.1.0")
+    args = parser.parse_args()
+
+    url = f"http://{args.host}:{args.port}"
+
+    if not args.no_browser:
+        def open_browser():
+            time.sleep(0.8)
+            for browser_cmd in ["chromium", "google-chrome", "brave"]:
+                if shutil.which(browser_cmd):
+                    try:
+                        subprocess.Popen([
+                            browser_cmd,
+                            f"--app={url}",
+                            "--user-data-dir=/tmp/photo-scanner-chromium-profile"
+                        ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                        return
+                    except Exception:
+                        pass
+            webbrowser.open(url)
+
+        thread = threading.Thread(target=open_browser, daemon=True)
+        thread.start()
+
+    import uvicorn
+    uvicorn.run(app, host=args.host, port=args.port, log_level="info")
+
+
+if __name__ == "__main__":
+    cli()

@@ -92,6 +92,39 @@ Run the launcher script:
 
 ---
 
+## 📦 Standalone Binary Executable (No Python Required)
+
+You can compile Photo Scanner & Deskew into a single, standalone Linux ELF binary executable. The resulting binary bundles Python, OpenCV, FastAPI, and all web assets into a self-contained executable that runs on any modern 64-bit Linux distribution without requiring Python or virtual environments installed.
+
+### 1. Build the Binary
+```bash
+./build.sh
+```
+This compiles the application and outputs the standalone executable to:
+```text
+dist/scanner-photos
+```
+
+### 2. Run the Standalone Binary
+```bash
+# Launch app directly (opens Chromium/browser automatically)
+./dist/scanner-photos
+
+# Or run with CLI options:
+./dist/scanner-photos --port 8321
+./dist/scanner-photos --no-browser
+./dist/scanner-photos --help
+./dist/scanner-photos --version
+```
+
+### 3. Optional: Install System-Wide
+To install the binary so it can be launched from anywhere in your terminal:
+```bash
+sudo cp dist/scanner-photos /usr/local/bin/
+```
+
+---
+
 ## ⌨️ Keyboard Shortcuts
 
 | Shortcut | Action |
@@ -128,6 +161,8 @@ scanner-photos/
 │   ├── test_api.py          # FastAPI endpoints & batch export tests
 │   └── test_vision.py       # Computer vision deskew and detection unit tests
 ├── pyproject.toml           # Project metadata & Python dependencies
+├── build.sh                 # PyInstaller one-click standalone compilation script
+├── scanner-photos.spec      # PyInstaller bundling specification
 ├── run.sh                   # App startup & desktop launcher script
 ├── scanner-photos.desktop   # Linux desktop application entry
 └── README.md

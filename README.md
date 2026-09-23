@@ -74,7 +74,7 @@ scanimage -L
 
 ### 1. Clone the repository
 ```bash
-git clone https://github.com/<your-username>/scanner-photos.git
+git clone https://github.com/wbecher/scanner-photos.git
 cd scanner-photos
 ```
 

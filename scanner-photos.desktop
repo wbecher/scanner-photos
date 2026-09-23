@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=Photo Scanner & Deskew
+Comment=Scan, auto-detect, crop and deskew multiple photos on flatbed scanner
+Exec=/home/wbecher/git/scanner-photos/run.sh
+Icon=scanner
+Terminal=false
+Type=Application
+Categories=Graphics;Photography;Scanning;

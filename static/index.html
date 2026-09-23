@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Photo Scanner & Deskew</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <!-- Header -->
+  <header>
+    <div class="logo-area">
+      <svg class="logo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+        <line x1="8" y1="21" x2="16" y2="21"></line>
+        <line x1="12" y1="17" x2="12" y2="21"></line>
+      </svg>
+      <span data-i18n="appTitle">Photo Scanner & Deskew</span>
+    </div>
+
+    <!-- Scanner & Hardware Controls -->
+    <div class="controls-group">
+      <select id="scannerSelect" class="select-control" data-i18n-title="scanner">
+        <option value="">Searching scanners...</option>
+      </select>
+
+      <select id="dpiSelect" class="select-control" data-i18n-title="dpi">
+        <option value="75">75 DPI (Preview)</option>
+        <option value="150">150 DPI</option>
+        <option value="300">300 DPI</option>
+        <option value="600" selected>600 DPI (HQ Default)</option>
+        <option value="1200">1200 DPI</option>
+      </select>
+
+      <select id="modeSelect" class="select-control" data-i18n-title="mode">
+        <option value="Color" data-i18n="color">Color</option>
+        <option value="Gray" data-i18n="gray">Grayscale</option>
+      </select>
+
+      <button id="scanBtn" class="btn btn-primary" title="Scan Flatbed (Space)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+        <span data-i18n="scanBtn">Scan Flatbed</span>
+        <kbd class="kbd-shortcut" data-i18n="spaceKey">Space</kbd>
+      </button>
+
+      <button id="validateBtn" class="btn btn-validate" disabled>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 11 12 14 22 4"></polyline><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>
+        <span data-i18n="validatePhotos">Validate Photos</span> (<span id="totalPhotosCount">0</span>)
+      </button>
+
+      <button id="openFileBtn" class="btn btn-secondary">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+        <span data-i18n="openImage">Open File</span>
+      </button>
+      <input type="file" id="fileInput" accept="image/*" multiple style="display: none;">
+
+      <button id="demoBtn" class="btn btn-secondary" title="Load sample multi-photo scan">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 2v7.31L4.5 18.5A2 2 0 0 0 6.2 21h11.6a2 2 0 0 0 1.7-2.5L14 9.31V2"></path></svg>
+        <span data-i18n="demoScan">Load Demo</span>
+      </button>
+
+      <button id="settingsBtn" class="btn btn-secondary" title="Settings">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+      </button>
+
+      <!-- Language selector -->
+      <select id="langSelect" class="select-control" style="width: 75px;">
+        <option value="en">EN</option>
+        <option value="pt">PT</option>
+      </select>
+    </div>
+  </header>
+
+  <!-- Multi-Page Strip -->
+  <div class="pages-bar" id="pagesBar">
+    <div class="pages-bar-title">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
+      <span data-i18n="pages">Pages</span>:
+    </div>
+    <div class="pages-list" id="pagesList">
+      <!-- dynamic page badges -->
+    </div>
+    <button id="addPageBtn" class="btn-add-page" title="Scan or add next page (Space)">
+      <span>+</span> <span data-i18n="addPage">+ Next Page</span>
+      <kbd class="kbd-shortcut" data-i18n="spaceKey">Space</kbd>
+    </button>
+  </div>
+
+  <!-- Main Application Body -->
+  <div class="app-container">
+    <!-- Interactive Canvas Viewport -->
+    <div class="canvas-wrapper">
+      <!-- Overlay Floating Toolbar -->
+      <div class="canvas-toolbar">
+        <button id="zoomInBtn" class="tool-btn" data-i18n-title="zoomIn">🔍+</button>
+        <button id="zoomOutBtn" class="tool-btn" data-i18n-title="zoomOut">🔍-</button>
+        <button id="zoomFitBtn" class="tool-btn" data-i18n-title="zoomFit">⛶</button>
+        <button id="zoom100Btn" class="tool-btn" data-i18n-title="zoom100">1:1</button>
+        <div style="width: 1px; height: 16px; background: var(--border-color); margin: 0 4px;"></div>
+        
+        <button id="redetectBtn" class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.8rem;">
+          <span data-i18n="autoDetect">Auto-Detect</span>
+        </button>
+
+        <label>
+          <input type="checkbox" id="hasBordersCheck">
+          <span data-i18n="hasBorders">Photos have white borders</span>
+        </label>
+
+        <div style="width: 1px; height: 16px; background: var(--border-color); margin: 0 4px;"></div>
+        
+        <button id="addBoxBtn" class="tool-btn" data-i18n-title="addBox">
+          ➕ <span data-i18n="addBox">Add Box</span>
+        </button>
+
+        <button id="deleteBoxBtn" class="tool-btn" data-i18n-title="deleteBox" style="color: var(--danger-color);">
+          🗑️
+        </button>
+      </div>
+
+      <!-- Canvas Element -->
+      <canvas id="canvasElement"></canvas>
+
+      <!-- Bottom Hint -->
+      <div class="canvas-hint" data-i18n="dragHint">
+        Click & drag corners to fine-tune crop borders. Scroll to zoom, drag to pan.
+      </div>
+
+      <!-- Loading / Scanning Overlay -->
+      <div id="loadingOverlay" class="loading-overlay">
+        <div class="spinner"></div>
+        <div id="loadingText" style="font-weight: 500; font-size: 0.95rem;">Scanning flatbed...</div>
+        <div id="progressBox" class="progress-box" style="display: none;">
+          <div id="progressBoxBar" class="progress-box-bar"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right Sidebar: Detected Cropped Photos -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <h2 data-i18n="detectedPhotos">Detected Photos</h2>
+        <span id="photoCountBadge" class="badge">0</span>
+      </div>
+
+      <!-- Card List of Photos -->
+      <div id="photoCardsList" class="photo-cards-container">
+        <div class="empty-state">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="opacity: 0.4;">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+            <circle cx="8.5" cy="8.5" r="1.5"></circle>
+            <polyline points="21 15 16 10 5 21"></polyline>
+          </svg>
+          <p data-i18n="noPhotosDetected">No photos detected yet. Click 'Scan', 'Open File' or 'Load Demo'.</p>
+        </div>
+      </div>
+
+      <!-- Footer: Export Panel -->
+      <div class="sidebar-footer">
+        <div class="export-info" id="exportDestLabel" title="">
+          Dest: ~/Pictures/Scans
+        </div>
+        <button id="exportAllBtn" class="btn btn-success" style="width: 100%; justify-content: center;" disabled>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+          <span data-i18n="validatePhotos">Validate & Export Photos</span>
+        </button>
+      </div>
+    </aside>
+  </div>
+
+  <!-- Photo Validation & Review Modal -->
+  <div id="validationModal" class="modal-overlay">
+    <div class="modal-dialog modal-large">
+      <div class="validation-header">
+        <div class="validation-header-title">
+          <h3>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2.5"><polyline points="9 11 12 14 22 4"></polyline><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>
+            <span data-i18n="validationTitle">Photo Validation & Review</span>
+          </h3>
+          <div class="validation-stats" id="validationStats">0 pages • 0 photos detected • 0 selected for export</div>
+        </div>
+        <button id="closeValidationBtn" class="tool-btn" style="font-size: 1.1rem;">✕</button>
+      </div>
+
+      <!-- Toolbar with filters, batch naming, and batch actions -->
+      <div class="validation-toolbar">
+        <div class="validation-tabs" id="validationTabs">
+          <button class="tab-btn active" data-filter="all" data-i18n="filterAll">All Pages</button>
+        </div>
+
+        <div class="validation-naming-bar">
+          <div class="naming-pattern-group">
+            <label data-i18n="namingPatternLabel">Naming Pattern:</label>
+            <input type="text" id="valNamingPatternInput" value="Photo_{date}_{index:03d}" placeholder="Ex: Viagem_{index:03d}">
+            <button id="valApplyNamingBtn" class="btn btn-secondary" style="font-size: 0.75rem; padding: 4px 10px;" title="Apply pattern to photo names">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+              <span data-i18n="applyNaming">Apply to Names</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="validation-batch-actions">
+          <button id="valSelectAllBtn" class="btn btn-secondary" style="font-size: 0.75rem; padding: 4px 8px;" data-i18n="selectAll">Select All</button>
+          <button id="valDeselectAllBtn" class="btn btn-secondary" style="font-size: 0.75rem; padding: 4px 8px;" data-i18n="deselectAll">Deselect All</button>
+        </div>
+      </div>
+
+      <!-- Photo Grid for Validation -->
+      <div class="validation-grid" id="validationGrid">
+        <!-- Dynamic validation photo cards -->
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="validation-modal-footer">
+        <div class="export-dest-config">
+          <span data-i18n="exportDir">Destination:</span>
+          <div class="dest-input-group">
+            <input type="text" id="valOutputDir" placeholder="/path/to/folder">
+            <button id="valBrowseDirBtn" class="btn btn-secondary" style="font-size: 0.78rem; padding: 5px 10px;" title="Select folder">
+              📁 <span data-i18n="browseDir">Browse...</span>
+            </button>
+          </div>
+        </div>
+        <div style="display: flex; gap: 10px;">
+          <button id="cancelValidationBtn" class="btn btn-secondary" data-i18n="backToPages">← Back to Pages</button>
+          <button id="confirmBatchExportBtn" class="btn btn-success">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>
+            <span id="exportBatchBtnText">Export Validated Photos</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings Modal -->
+  <div id="settingsModal" class="modal-overlay">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 data-i18n="settings">Settings</h3>
+        <button id="closeSettingsBtn" class="tool-btn">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label data-i18n="exportDir">Destination Directory</label>
+          <div class="dest-input-group">
+            <input type="text" id="settingOutputDir" placeholder="/path/to/folder" style="flex: 1;">
+            <button id="settingBrowseDirBtn" class="btn btn-secondary" style="font-size: 0.78rem; padding: 6px 10px;" title="Select folder">
+              📁 <span data-i18n="browseDir">Browse...</span>
+            </button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label data-i18n="namingPattern">Naming Pattern</label>
+          <input type="text" id="settingNamingPattern" value="Photo_{date}_{index:03d}">
+        </div>
+        <div class="form-group">
+          <label data-i18n="format">Format</label>
+          <select id="settingFormat">
+            <option value="JPEG">JPEG (Compressed)</option>
+            <option value="PNG">PNG (Lossless)</option>
+            <option value="TIFF">TIFF (Archive)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label data-i18n="quality">JPEG Quality (80 - 100)</label>
+          <input type="number" id="settingQuality" min="80" max="100" value="95">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="cancelSettingsBtn" class="btn btn-secondary" data-i18n="close">Close</button>
+        <button id="saveSettingsBtn" class="btn btn-primary" data-i18n="saveSettings">Save Settings</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toastNotification" class="toast">
+    <span id="toastMessage"></span>
+  </div>
+
+  <!-- JavaScript Modules -->
+  <script src="/js/i18n.js"></script>
+  <script src="/js/canvas.js"></script>
+  <script src="/js/app.js"></script>
+</body>
+</html>

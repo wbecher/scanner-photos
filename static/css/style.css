@@ -208,6 +208,8 @@ header {
   width: 100%;
   height: 100%;
   cursor: grab;
+  touch-action: none;
+  -webkit-touch-callout: none;
 }
 
 #canvasElement:active {
@@ -984,6 +986,186 @@ header {
 .dest-input-group input:focus {
   border-color: var(--accent-color);
   outline: none;
+}
+
+/* QR Code & Tablet Connect */
+.qr-code-box {
+  background: white;
+  border-radius: 12px;
+  padding: 12px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 8px 0;
+}
+
+.qr-code-box img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Folder Browser Modal */
+.folder-shortcuts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.folder-shortcut-chip {
+  background-color: var(--bg-tertiary);
+  color: var(--text-main);
+  border: 1px solid var(--border-color);
+  padding: 4px 10px;
+  border-radius: 16px;
+  font-size: 0.78rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.folder-shortcut-chip:hover {
+  background-color: var(--accent-color);
+  color: white;
+  border-color: var(--accent-color);
+}
+
+.folder-path-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.folder-path-display {
+  background-color: var(--bg-tertiary);
+  color: var(--text-main);
+  border: 1px solid var(--border-color);
+  padding: 7px 10px;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-family: monospace;
+}
+
+.folder-browser-list {
+  max-height: 280px;
+  overflow-y: auto;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background-color: var(--bg-primary);
+  display: flex;
+  flex-direction: column;
+}
+
+.folder-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(46, 53, 71, 0.4);
+  cursor: pointer;
+  transition: background-color 0.12s ease;
+  font-size: 0.88rem;
+}
+
+.folder-item:last-child {
+  border-bottom: none;
+}
+
+.folder-item:hover,
+.folder-item.active {
+  background-color: var(--bg-tertiary);
+  color: var(--accent-color);
+}
+
+.folder-item-icon {
+  font-size: 1.1rem;
+}
+
+.folder-item-name {
+  flex: 1;
+  word-break: break-all;
+}
+
+.folder-create-bar input {
+  background-color: var(--bg-tertiary);
+  color: var(--text-main);
+  border: 1px solid var(--border-color);
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 0.82rem;
+}
+
+.folder-create-bar input:focus {
+  border-color: var(--accent-color);
+  outline: none;
+}
+
+/* Tablet & Mobile Responsiveness */
+@media (max-width: 1024px) {
+  header {
+    height: auto;
+    padding: 8px 12px;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .controls-group {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .select-control {
+    padding: 8px 10px;
+    font-size: 0.85rem;
+  }
+
+  .btn {
+    padding: 8px 12px;
+    min-height: 38px;
+  }
+
+  .sidebar {
+    width: 320px;
+  }
+
+  .modal-dialog.modal-large {
+    width: 95vw;
+    max-height: 92vh;
+  }
+}
+
+@media (max-width: 768px) {
+  .app-container {
+    flex-direction: column;
+  }
+
+  .canvas-wrapper {
+    height: 55vh;
+  }
+
+  .sidebar {
+    width: 100%;
+    height: 45vh;
+    border-left: none;
+    border-top: 1px solid var(--border-color);
+  }
+
+  .canvas-toolbar {
+    top: 8px;
+    left: 8px;
+    padding: 4px 6px;
+    gap: 4px;
+    max-width: calc(100vw - 16px);
+    overflow-x: auto;
+  }
+
+  .tool-btn {
+    padding: 6px 8px;
+    font-size: 0.9rem;
+  }
 }
 
 

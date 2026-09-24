@@ -17,6 +17,7 @@ from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import io
+import socket
 
 from scanner_photos.scanner import list_devices, perform_scan, is_sane_available
 from scanner_photos.vision import detect_photos, crop_and_deskew, save_photo
@@ -67,6 +68,38 @@ def load_settings() -> dict:
 def save_settings_to_disk(settings: dict):
     with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
         json.dump(settings, f, indent=2)
+
+def get_local_ips() -> List[str]:
+    ips = []
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(('10.254.254.254', 1))
+        primary = s.getsockname()[0]
+        s.close()
+        if primary and primary != "127.0.0.1":
+            ips.append(primary)
+    except Exception:
+        pass
+
+    try:
+        res = subprocess.run(["ip", "-4", "-o", "addr", "show"], stdout=subprocess.PIPE, text=True, timeout=2)
+        for line in res.stdout.strip().splitlines():
+            parts = line.split()
+            if len(parts) >= 4:
+                dev = parts[1]
+                ip_cidr = parts[3]
+                ip = ip_cidr.split("/")[0]
+                if not dev.startswith("lo") and not dev.startswith("docker") and not dev.startswith("br-") and not dev.startswith("veth"):
+                    if ip not in ips:
+                        ips.append(ip)
+    except Exception:
+        pass
+
+    return ips if ips else ["127.0.0.1"]
+
+def get_local_ip() -> str:
+    ips = get_local_ips()
+    return ips[0] if ips else "127.0.0.1"
 
 app = FastAPI(title="Photo Scanner Deskew", version="0.1.0")
 
@@ -135,6 +168,16 @@ class DemoScanRequest(BaseModel):
 
 class ChooseDirectoryRequest(BaseModel):
     initial_dir: Optional[str] = None
+
+
+class BrowseDirRequest(BaseModel):
+    path: Optional[str] = None
+    show_hidden: bool = False
+
+
+class CreateDirRequest(BaseModel):
+    parent_path: str
+    folder_name: str
 
 
 @app.get("/api/scanners")
@@ -549,6 +592,112 @@ def api_save_settings(settings: dict = Body(...)):
     return {"status": "ok", "settings": current}
 
 
+@app.get("/api/server-info")
+def api_server_info():
+    local_ips = get_local_ips()
+    primary_ip = local_ips[0]
+    port = 8321
+    has_qr = shutil.which("qrencode") is not None
+    return {
+        "status": "ok",
+        "local_ip": primary_ip,
+        "local_ips": local_ips,
+        "port": port,
+        "remote_url": f"http://{primary_ip}:{port}",
+        "all_urls": [f"http://{ip}:{port}" for ip in local_ips],
+        "hostname": socket.gethostname(),
+        "has_qrcode": has_qr
+    }
+
+
+@app.get("/api/qrcode")
+def api_qrcode(host: Optional[str] = None):
+    ip = host or get_local_ip()
+    url = f"http://{ip}:8321"
+    if shutil.which("qrencode"):
+        try:
+            res = subprocess.run(
+                ["qrencode", "-t", "SVG", url],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                check=True
+            )
+            return StreamingResponse(io.BytesIO(res.stdout.encode("utf-8")), media_type="image/svg+xml")
+        except Exception:
+            pass
+    raise HTTPException(status_code=404, detail="QR code generation not available")
+
+
+@app.post("/api/browse-directories")
+def api_browse_directories(req: Optional[BrowseDirRequest] = Body(None)):
+    raw_path = (req.path if req and req.path else "").strip()
+    if not raw_path:
+        current_path = os.path.expanduser("~")
+    else:
+        current_path = os.path.expanduser(raw_path)
+
+    current_path = os.path.abspath(current_path)
+    if not os.path.exists(current_path) or not os.path.isdir(current_path):
+        current_path = os.path.expanduser("~")
+
+    parent_path = os.path.dirname(current_path) if current_path != "/" else None
+
+    subdirs = []
+    try:
+        with os.scandir(current_path) as entries:
+            for entry in entries:
+                try:
+                    if entry.is_dir(follow_symlinks=True):
+                        if not (req and req.show_hidden) and entry.name.startswith("."):
+                            continue
+                        subdirs.append({
+                            "name": entry.name,
+                            "path": entry.path
+                        })
+                except (PermissionError, OSError):
+                    continue
+        subdirs.sort(key=lambda x: x["name"].lower())
+    except (PermissionError, OSError):
+        pass
+
+    home_dir = os.path.expanduser("~")
+    shortcuts = [
+        {"name": "Home (~)", "path": home_dir},
+        {"name": "Pictures", "path": os.path.join(home_dir, "Pictures")},
+        {"name": "Scans", "path": os.path.join(home_dir, "Pictures", "Scans")},
+        {"name": "Desktop", "path": os.path.join(home_dir, "Desktop")},
+        {"name": "Downloads", "path": os.path.join(home_dir, "Downloads")},
+        {"name": "Root (/)", "path": "/"}
+    ]
+    valid_shortcuts = [s for s in shortcuts if os.path.exists(s["path"])]
+
+    return {
+        "status": "ok",
+        "current_path": current_path,
+        "parent_path": parent_path,
+        "directories": subdirs,
+        "shortcuts": valid_shortcuts,
+        "writable": os.access(current_path, os.W_OK)
+    }
+
+
+@app.post("/api/create-directory")
+def api_create_directory(req: CreateDirRequest):
+    parent = os.path.expanduser(req.parent_path.strip())
+    name = req.folder_name.strip()
+    if not name or "/" in name or "\\" in name or name in [".", ".."]:
+        raise HTTPException(status_code=400, detail="Invalid folder name")
+    new_dir = os.path.join(parent, name)
+    try:
+        os.makedirs(new_dir, exist_ok=False)
+        return {"status": "ok", "path": os.path.abspath(new_dir)}
+    except FileExistsError:
+        raise HTTPException(status_code=400, detail="Folder already exists")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # Serve static files
 app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="static")
 
@@ -562,12 +711,20 @@ def cli():
         description="Photo Scanner & Deskew: Multi-photo flatbed scanner and alignment app for Linux"
     )
     parser.add_argument("--port", type=int, default=8321, help="Port to run server on (default: 8321)")
-    parser.add_argument("--host", type=str, default="127.0.0.1", help="Host to bind (default: 127.0.0.1)")
+    parser.add_argument("--host", type=str, default="0.0.0.0", help="Host to bind (default: 0.0.0.0)")
     parser.add_argument("--no-browser", action="store_true", help="Do not open browser window automatically")
     parser.add_argument("--version", action="version", version="Photo Scanner & Deskew 0.1.0")
     args = parser.parse_args()
 
-    url = f"http://{args.host}:{args.port}"
+    local_ip = get_local_ip()
+    local_url = f"http://localhost:{args.port}"
+    remote_url = f"http://{local_ip}:{args.port}"
+
+    print("=" * 60)
+    print("📸 Photo Scanner & Deskew - Server Running")
+    print(f"🖥️  Local PC:      {local_url}")
+    print(f"📱 Tablet/Remote: {remote_url}")
+    print("=" * 60)
 
     if not args.no_browser:
         def open_browser():
@@ -577,13 +734,13 @@ def cli():
                     try:
                         subprocess.Popen([
                             browser_cmd,
-                            f"--app={url}",
+                            f"--app={local_url}",
                             "--user-data-dir=/tmp/photo-scanner-chromium-profile"
                         ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                         return
                     except Exception:
                         pass
-            webbrowser.open(url)
+            webbrowser.open(local_url)
 
         thread = threading.Thread(target=open_browser, daemon=True)
         thread.start()

@@ -75,6 +75,27 @@ document.addEventListener("DOMContentLoaded", async () => {
   const confirmBatchExportBtn = document.getElementById("confirmBatchExportBtn");
   const exportBatchBtnText = document.getElementById("exportBatchBtnText");
 
+  // Elements: Connect Tablet Modal
+  const connectTabletBtn = document.getElementById("connectTabletBtn");
+  const connectTabletModal = document.getElementById("connectTabletModal");
+  const closeConnectTabletBtn = document.getElementById("closeConnectTabletBtn");
+  const tabletRemoteUrlInput = document.getElementById("tabletRemoteUrlInput");
+  const copyRemoteUrlBtn = document.getElementById("copyRemoteUrlBtn");
+  const tabletQrImage = document.getElementById("tabletQrImage");
+
+  // Elements: Folder Browser Modal
+  const folderBrowserModal = document.getElementById("folderBrowserModal");
+  const closeFolderBrowserBtn = document.getElementById("closeFolderBrowserBtn");
+  const cancelFolderBrowserBtn = document.getElementById("cancelFolderBrowserBtn");
+  const selectThisFolderBtn = document.getElementById("selectThisFolderBtn");
+  const folderShortcutsBar = document.getElementById("folderShortcutsBar");
+  const folderUpBtn = document.getElementById("folderUpBtn");
+  const folderCurrentPathInput = document.getElementById("folderCurrentPathInput");
+  const folderBrowserList = document.getElementById("folderBrowserList");
+  const newFolderNameInput = document.getElementById("newFolderNameInput");
+  const confirmCreateFolderBtn = document.getElementById("confirmCreateFolderBtn");
+  const folderWritableBadge = document.getElementById("folderWritableBadge");
+
   // Initialize Canvas
   scanCanvas = new ScanCanvas(
     canvasElement,
@@ -139,42 +160,173 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   }
 
-  // Directory Browser via Native OS Picker
-  async function chooseDirectory(targetInput) {
+  // Web Directory Browser for Remote / Local use
+  let activeFolderBrowserTargetInput = null;
+  let browserCurrentPath = "";
+  let browserParentPath = null;
+
+  async function loadDirectories(path) {
     try {
-      showLoading("Opening folder picker...");
-      const currentPath = targetInput ? targetInput.value : (appSettings.output_dir || "");
-      const res = await fetch("/api/choose-directory", {
+      folderBrowserList.innerHTML = `<div style="padding: 16px; text-align: center; color: var(--text-muted);">Loading folders...</div>`;
+      const res = await fetch("/api/browse-directories", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ initial_dir: currentPath })
+        body: JSON.stringify({ path: path || "" })
       });
       const data = await res.json();
-      if (data.status === "ok" && data.path) {
-        if (targetInput) targetInput.value = data.path;
-        appSettings.output_dir = data.path;
-        if (valOutputDir) valOutputDir.value = data.path;
-        if (settingOutputDir) settingOutputDir.value = data.path;
+      if (data.status === "ok") {
+        browserCurrentPath = data.current_path;
+        browserParentPath = data.parent_path;
+        folderCurrentPathInput.value = data.current_path;
+        folderUpBtn.disabled = !data.parent_path;
+
+        // Render shortcuts
+        folderShortcutsBar.innerHTML = "";
+        data.shortcuts.forEach(s => {
+          const chip = document.createElement("button");
+          chip.type = "button";
+          chip.className = "folder-shortcut-chip";
+          chip.textContent = s.name;
+          chip.addEventListener("click", () => loadDirectories(s.path));
+          folderShortcutsBar.appendChild(chip);
+        });
+
+        // Render directories
+        folderBrowserList.innerHTML = "";
+        if (data.directories.length === 0) {
+          folderBrowserList.innerHTML = `<div style="padding: 16px; text-align: center; color: var(--text-muted);">${t("emptyFolder")}</div>`;
+        } else {
+          data.directories.forEach(d => {
+            const item = document.createElement("div");
+            item.className = "folder-item";
+            item.innerHTML = `<span class="folder-item-icon">📁</span><span class="folder-item-name">${d.name}</span>`;
+            item.addEventListener("click", () => loadDirectories(d.path));
+            folderBrowserList.appendChild(item);
+          });
+        }
+
+        if (folderWritableBadge) {
+          folderWritableBadge.textContent = data.writable ? "✓ Writable" : "⚠ Read-only";
+          folderWritableBadge.style.color = data.writable ? "var(--accent-green)" : "var(--danger-color)";
+        }
+      }
+    } catch (err) {
+      folderBrowserList.innerHTML = `<div style="padding: 16px; color: var(--danger-color);">Error loading folders: ${err.message}</div>`;
+    }
+  }
+
+  function openFolderBrowser(targetInput) {
+    activeFolderBrowserTargetInput = targetInput;
+    const initial = targetInput ? targetInput.value : (appSettings.output_dir || "");
+    folderBrowserModal.classList.add("open");
+    loadDirectories(initial);
+  }
+
+  function closeFolderBrowser() {
+    folderBrowserModal.classList.remove("open");
+    activeFolderBrowserTargetInput = null;
+  }
+
+  if (closeFolderBrowserBtn) closeFolderBrowserBtn.addEventListener("click", closeFolderBrowser);
+  if (cancelFolderBrowserBtn) cancelFolderBrowserBtn.addEventListener("click", closeFolderBrowser);
+
+  if (folderUpBtn) {
+    folderUpBtn.addEventListener("click", () => {
+      if (browserParentPath) {
+        loadDirectories(browserParentPath);
+      }
+    });
+  }
+
+  if (selectThisFolderBtn) {
+    selectThisFolderBtn.addEventListener("click", async () => {
+      if (browserCurrentPath) {
+        if (activeFolderBrowserTargetInput) {
+          activeFolderBrowserTargetInput.value = browserCurrentPath;
+        }
+        appSettings.output_dir = browserCurrentPath;
+        if (valOutputDir) valOutputDir.value = browserCurrentPath;
+        if (settingOutputDir) settingOutputDir.value = browserCurrentPath;
         updateExportLabel();
         await fetch("/api/settings", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(appSettings)
         });
-        showToast(data.path, "success");
+        showToast(browserCurrentPath, "success");
       }
-    } catch (err) {
-      showToast("Failed to select folder: " + err.message, "error");
-    } finally {
-      hideLoading();
-    }
+      closeFolderBrowser();
+    });
+  }
+
+  if (confirmCreateFolderBtn) {
+    confirmCreateFolderBtn.addEventListener("click", async () => {
+      const name = newFolderNameInput.value.trim();
+      if (!name) return;
+      try {
+        const res = await fetch("/api/create-directory", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            parent_path: browserCurrentPath,
+            folder_name: name
+          })
+        });
+        const data = await res.json();
+        if (data.status === "ok") {
+          newFolderNameInput.value = "";
+          await loadDirectories(data.path);
+          showToast("Folder created: " + name, "success");
+        } else {
+          showToast(data.detail || "Failed to create folder", "error");
+        }
+      } catch (err) {
+        showToast("Error: " + err.message, "error");
+      }
+    });
   }
 
   if (valBrowseDirBtn) {
-    valBrowseDirBtn.addEventListener("click", () => chooseDirectory(valOutputDir));
+    valBrowseDirBtn.addEventListener("click", () => openFolderBrowser(valOutputDir));
   }
   if (settingBrowseDirBtn) {
-    settingBrowseDirBtn.addEventListener("click", () => chooseDirectory(settingOutputDir));
+    settingBrowseDirBtn.addEventListener("click", () => openFolderBrowser(settingOutputDir));
+  }
+
+  // Tablet Connect Handlers
+  if (connectTabletBtn) {
+    connectTabletBtn.addEventListener("click", async () => {
+      try {
+        const res = await fetch("/api/server-info");
+        const info = await res.json();
+        if (info.status === "ok") {
+          tabletRemoteUrlInput.value = info.remote_url;
+          tabletQrImage.src = `/api/qrcode?t=${Date.now()}`;
+        }
+      } catch (err) {
+        tabletRemoteUrlInput.value = window.location.href;
+      }
+      connectTabletModal.classList.add("open");
+    });
+  }
+
+  if (closeConnectTabletBtn) {
+    closeConnectTabletBtn.addEventListener("click", () => {
+      connectTabletModal.classList.remove("open");
+    });
+  }
+
+  if (copyRemoteUrlBtn) {
+    copyRemoteUrlBtn.addEventListener("click", () => {
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(tabletRemoteUrlInput.value);
+        showToast(t("linkCopied"), "success");
+      } else {
+        tabletRemoteUrlInput.select();
+        document.execCommand("copy");
+        showToast(t("linkCopied"), "success");
+      }
+    });
   }
 
   // Zoom / View controls

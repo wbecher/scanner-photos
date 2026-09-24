@@ -63,6 +63,11 @@
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
       </button>
 
+      <button id="connectTabletBtn" class="btn btn-secondary" title="Connect Tablet / Remote Access" data-i18n-title="connectTabletTitle">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="2" width="16" height="20" rx="2" ry="2"></rect><line x1="12" y1="18" x2="12.01" y2="18"></line></svg>
+        <span data-i18n="connectTablet">Tablet</span>
+      </button>
+
       <!-- Language selector -->
       <select id="langSelect" class="select-control" style="width: 75px;">
         <option value="en">EN</option>
@@ -269,6 +274,72 @@
       <div class="modal-footer">
         <button id="cancelSettingsBtn" class="btn btn-secondary" data-i18n="close">Close</button>
         <button id="saveSettingsBtn" class="btn btn-primary" data-i18n="saveSettings">Save Settings</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Connect Tablet Modal -->
+  <div id="connectTabletModal" class="modal-overlay">
+    <div class="modal-dialog" style="max-width: 440px; text-align: center;">
+      <div class="modal-header">
+        <h3 data-i18n="connectTabletTitle">Connect Tablet / Remote Access</h3>
+        <button id="closeConnectTabletBtn" class="tool-btn">✕</button>
+      </div>
+      <div class="modal-body" style="display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 20px;">
+        <p style="font-size: 0.9rem; color: var(--text-muted); line-height: 1.4;" data-i18n="connectTabletDesc">
+          Scan this QR code with your tablet camera or open the link below on the same Wi-Fi:
+        </p>
+        <div id="tabletQrContainer" class="qr-code-box">
+          <img id="tabletQrImage" src="/api/qrcode" alt="QR Code" width="200" height="200" style="border-radius: 8px; background: white; padding: 8px; display: block; margin: 0 auto;" />
+        </div>
+        <div class="remote-url-display" style="width: 100%;">
+          <input type="text" id="tabletRemoteUrlInput" readonly value="Loading..." style="text-align: center; font-weight: 600; font-size: 0.95rem; width: 100%; padding: 8px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-tertiary); color: var(--text-main);" />
+          <button id="copyRemoteUrlBtn" class="btn btn-secondary" style="width: 100%; justify-content: center; margin-top: 10px;">
+            📋 <span data-i18n="copyLink">Copy Link</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Folder Browser Modal (PC Directory Selector for Tablets & Remote Clients) -->
+  <div id="folderBrowserModal" class="modal-overlay">
+    <div class="modal-dialog" style="max-width: 640px; width: 92%;">
+      <div class="modal-header">
+        <h3 data-i18n="browsePcFolders">Browse PC Folders</h3>
+        <button id="closeFolderBrowserBtn" class="tool-btn">✕</button>
+      </div>
+      <div class="modal-body" style="padding: 16px; display: flex; flex-direction: column; gap: 12px;">
+        <!-- Shortcuts chips -->
+        <div class="folder-shortcuts" id="folderShortcutsBar">
+          <!-- Dynamic shortcuts like Home, Pictures, Scans, Desktop -->
+        </div>
+
+        <!-- Current path navigation & Parent button -->
+        <div class="folder-path-nav">
+          <button id="folderUpBtn" class="btn btn-secondary" style="padding: 6px 12px;">
+            ⬆ <span data-i18n="parentFolder">Up</span>
+          </button>
+          <input type="text" id="folderCurrentPathInput" readonly class="folder-path-display" style="flex: 1;" />
+        </div>
+
+        <!-- Folders List -->
+        <div class="folder-browser-list" id="folderBrowserList">
+          <!-- Dynamic folders list -->
+        </div>
+
+        <!-- Create Folder inline -->
+        <div class="folder-create-bar" id="folderCreateBar" style="display: flex; gap: 8px;">
+          <input type="text" id="newFolderNameInput" placeholder="New folder name" data-i18n="folderNamePlaceholder" style="flex: 1;" />
+          <button id="confirmCreateFolderBtn" class="btn btn-secondary" data-i18n="create">Create</button>
+        </div>
+      </div>
+      <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-top: 1px solid var(--border-color);">
+        <span id="folderWritableBadge" style="font-size: 0.8rem; color: var(--accent-green);"></span>
+        <div style="display: flex; gap: 10px;">
+          <button id="cancelFolderBrowserBtn" class="btn btn-secondary" data-i18n="cancel">Cancel</button>
+          <button id="selectThisFolderBtn" class="btn btn-success" data-i18n="selectFolder">Select This Folder</button>
+        </div>
       </div>
     </div>
   </div>

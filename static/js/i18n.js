@@ -69,7 +69,22 @@ const translations = {
     namingApplied: "Pattern applied to {count} photos!",
     browseDir: "Browse...",
     spaceKey: "Space",
-    shortcutScanning: "Scanning next page..."
+    shortcutScanning: "Scanning next page...",
+    connectTablet: "Connect Tablet",
+    connectTabletTitle: "Connect Tablet / Remote Access",
+    connectTabletDesc: "Scan this QR code with your tablet camera or open the link below on the same Wi-Fi:",
+    copyLink: "Copy Link",
+    linkCopied: "Link copied to clipboard!",
+    browsePcFolders: "Browse PC Folders",
+    selectFolder: "Select This Folder",
+    newFolder: "+ New Folder",
+    folderNamePlaceholder: "Folder name",
+    create: "Create",
+    cancel: "Cancel",
+    quickAccess: "Quick Access",
+    parentFolder: "Up (Parent Folder)",
+    emptyFolder: "No subfolders found.",
+    savedOnPc: "Photos saved to PC: {path}"
   },
   pt: {
     appTitle: "Scanner de Fotos & Alinhamento",
@@ -141,7 +156,22 @@ const translations = {
     namingApplied: "Padrão aplicado a {count} fotos!",
     browseDir: "Selecionar Pasta...",
     spaceKey: "Espaço",
-    shortcutScanning: "Digitalizando próxima página..."
+    shortcutScanning: "Digitalizando próxima página...",
+    connectTablet: "Conectar Tablet",
+    connectTabletTitle: "Conectar Tablet / Acesso Remoto",
+    connectTabletDesc: "Aponte a câmera do seu tablet para o QR Code ou acesse o link abaixo na mesma rede Wi-Fi:",
+    copyLink: "Copiar Link",
+    linkCopied: "Link copiado para a área de transferência!",
+    browsePcFolders: "Navegar Pastas do PC",
+    selectFolder: "Selecionar Esta Pasta",
+    newFolder: "+ Nova Pasta",
+    folderNamePlaceholder: "Nome da pasta",
+    create: "Criar",
+    cancel: "Cancelar",
+    quickAccess: "Acesso Rápido",
+    parentFolder: "Subir (Pasta Acima)",
+    emptyFolder: "Nenhuma subpasta encontrada.",
+    savedOnPc: "Fotos salvas no PC em: {path}"
   }
 };
 

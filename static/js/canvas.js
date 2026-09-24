@@ -26,7 +26,15 @@ class ScanCanvas {
     this.newBoxStart = null;
     this.isAddBoxActive = false;
 
-    this.handleRadius = 8; // Screen px
+    this.handleRadius = 8; // Screen px for mouse
+    this.touchHandleRadius = 24; // Screen px for finger touch targets on tablet
+
+    // Touch and Pinch states
+    this.pinchStartDist = null;
+    this.pinchStartScale = 1.0;
+    this.pinchStartCenter = null;
+    this.pinchStartPan = null;
+    this.lastTouchPos = null;
 
     this.initEvents();
     this.resizeCanvas();
@@ -110,9 +118,16 @@ class ScanCanvas {
       this.setZoom(this.scale * zoomFactor, e.offsetX, e.offsetY);
     }, { passive: false });
 
+    // Mouse events
     this.canvas.addEventListener("mousedown", (e) => this.onMouseDown(e));
     window.addEventListener("mousemove", (e) => this.onMouseMove(e));
     window.addEventListener("mouseup", (e) => this.onMouseUp(e));
+
+    // Touch events for tablets and mobile devices
+    this.canvas.addEventListener("touchstart", (e) => this.onTouchStart(e), { passive: false });
+    window.addEventListener("touchmove", (e) => this.onTouchMove(e), { passive: false });
+    window.addEventListener("touchend", (e) => this.onTouchEnd(e), { passive: false });
+    window.addEventListener("touchcancel", (e) => this.onTouchEnd(e), { passive: false });
 
     window.addEventListener("keydown", (e) => {
       if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
@@ -128,13 +143,14 @@ class ScanCanvas {
     });
   }
 
-  hitTestCorner(screenX, screenY) {
+  hitTestCorner(screenX, screenY, isTouch = false) {
+    const radius = isTouch ? this.touchHandleRadius : this.handleRadius;
     for (let b = this.boxes.length - 1; b >= 0; b--) {
       const box = this.boxes[b];
       for (let c = 0; c < 4; c++) {
         const pt = this.imageToScreen(box.corners[c][0], box.corners[c][1]);
         const dist = Math.hypot(screenX - pt.x, screenY - pt.y);
-        if (dist <= this.handleRadius + 4) {
+        if (dist <= radius + (isTouch ? 8 : 4)) {
           return { boxId: box.id, cornerIndex: c };
         }
       }
@@ -165,13 +181,8 @@ class ScanCanvas {
     return null;
   }
 
-  onMouseDown(e) {
-    const rect = this.canvas.getBoundingClientRect();
-    const sx = e.clientX - rect.left;
-    const sy = e.clientY - rect.top;
-
-    if (e.button === 1 || e.spaceKey) {
-      // Middle click or space pan
+  startDrag(sx, sy, isTouch = false, isMiddle = false) {
+    if (isMiddle) {
       this.dragMode = "PAN";
       this.dragStartMouse = { x: sx, y: sy };
       return;
@@ -183,8 +194,8 @@ class ScanCanvas {
       return;
     }
 
-    // 1. Check corner handle click
-    const cornerHit = this.hitTestCorner(sx, sy);
+    // 1. Check corner handle click/touch
+    const cornerHit = this.hitTestCorner(sx, sy, isTouch);
     if (cornerHit) {
       this.dragMode = "DRAG_CORNER";
       this.selectedBoxId = cornerHit.boxId;
@@ -195,7 +206,7 @@ class ScanCanvas {
       return;
     }
 
-    // 2. Check box interior click
+    // 2. Check box interior click/touch
     const boxHit = this.hitTestBox(sx, sy);
     if (boxHit) {
       this.dragMode = "DRAG_BOX";
@@ -208,7 +219,7 @@ class ScanCanvas {
       return;
     }
 
-    // 3. Clicked on canvas background: start Pan
+    // 3. Canvas background: start Pan
     this.dragMode = "PAN";
     this.dragStartMouse = { x: sx, y: sy };
     this.selectedBoxId = null;
@@ -216,24 +227,8 @@ class ScanCanvas {
     this.render();
   }
 
-  onMouseMove(e) {
-    const rect = this.canvas.getBoundingClientRect();
-    const sx = e.clientX - rect.left;
-    const sy = e.clientY - rect.top;
-
-    if (!this.dragMode) {
-      // Update cursor depending on hover
-      if (this.isAddBoxActive) {
-        this.canvas.style.cursor = "crosshair";
-      } else if (this.hitTestCorner(sx, sy)) {
-        this.canvas.style.cursor = "pointer";
-      } else if (this.hitTestBox(sx, sy)) {
-        this.canvas.style.cursor = "move";
-      } else {
-        this.canvas.style.cursor = "grab";
-      }
-      return;
-    }
+  updateDrag(sx, sy) {
+    if (!this.dragMode) return;
 
     if (this.dragMode === "PAN") {
       this.canvas.style.cursor = "grabbing";
@@ -286,10 +281,9 @@ class ScanCanvas {
     }
   }
 
-  onMouseUp(e) {
+  endDrag(sx, sy) {
     if (this.dragMode === "DRAW_BOX" && this.newBoxStart) {
-      const rect = this.canvas.getBoundingClientRect();
-      const curr = this.screenToImage(e.clientX - rect.left, e.clientY - rect.top);
+      const curr = this.screenToImage(sx, sy);
       const minX = Math.min(this.newBoxStart.x, curr.x);
       const maxX = Math.max(this.newBoxStart.x, curr.x);
       const minY = Math.min(this.newBoxStart.y, curr.y);
@@ -328,6 +322,116 @@ class ScanCanvas {
     this.activeCornerIndex = -1;
     this.dragStartBoxCorners = null;
     this.render();
+  }
+
+  onMouseDown(e) {
+    const rect = this.canvas.getBoundingClientRect();
+    const sx = e.clientX - rect.left;
+    const sy = e.clientY - rect.top;
+    this.startDrag(sx, sy, false, e.button === 1 || e.spaceKey);
+  }
+
+  onMouseMove(e) {
+    const rect = this.canvas.getBoundingClientRect();
+    const sx = e.clientX - rect.left;
+    const sy = e.clientY - rect.top;
+
+    if (!this.dragMode) {
+      if (this.isAddBoxActive) {
+        this.canvas.style.cursor = "crosshair";
+      } else if (this.hitTestCorner(sx, sy, false)) {
+        this.canvas.style.cursor = "pointer";
+      } else if (this.hitTestBox(sx, sy)) {
+        this.canvas.style.cursor = "move";
+      } else {
+        this.canvas.style.cursor = "grab";
+      }
+      return;
+    }
+    this.updateDrag(sx, sy);
+  }
+
+  onMouseUp(e) {
+    const rect = this.canvas.getBoundingClientRect();
+    const sx = e.clientX - rect.left;
+    const sy = e.clientY - rect.top;
+    this.endDrag(sx, sy);
+  }
+
+  onTouchStart(e) {
+    if (e.touches.length === 2) {
+      e.preventDefault();
+      this.dragMode = "PINCH";
+      const t0 = e.touches[0];
+      const t1 = e.touches[1];
+      const rect = this.canvas.getBoundingClientRect();
+      this.pinchStartDist = Math.hypot(t0.clientX - t1.clientX, t0.clientY - t1.clientY);
+      this.pinchStartScale = this.scale;
+      this.pinchStartCenter = {
+        x: (t0.clientX + t1.clientX) / 2 - rect.left,
+        y: (t0.clientY + t1.clientY) / 2 - rect.top
+      };
+      this.pinchStartPan = { x: this.panX, y: this.panY };
+      return;
+    }
+
+    if (e.touches.length === 1) {
+      e.preventDefault();
+      const rect = this.canvas.getBoundingClientRect();
+      const sx = e.touches[0].clientX - rect.left;
+      const sy = e.touches[0].clientY - rect.top;
+      this.lastTouchPos = { x: sx, y: sy };
+      this.startDrag(sx, sy, true, false);
+    }
+  }
+
+  onTouchMove(e) {
+    if (this.dragMode === "PINCH" && e.touches.length === 2) {
+      e.preventDefault();
+      const t0 = e.touches[0];
+      const t1 = e.touches[1];
+      const rect = this.canvas.getBoundingClientRect();
+      const dist = Math.hypot(t0.clientX - t1.clientX, t0.clientY - t1.clientY);
+      if (this.pinchStartDist && dist > 0) {
+        const midX = (t0.clientX + t1.clientX) / 2 - rect.left;
+        const midY = (t0.clientY + t1.clientY) / 2 - rect.top;
+        const scaleFactor = dist / this.pinchStartDist;
+        const newScale = Math.max(0.05, Math.min(10.0, this.pinchStartScale * scaleFactor));
+
+        const imgX = (this.pinchStartCenter.x - this.pinchStartPan.x) / this.pinchStartScale;
+        const imgY = (this.pinchStartCenter.y - this.pinchStartPan.y) / this.pinchStartScale;
+
+        this.scale = newScale;
+        this.panX = midX - imgX * newScale;
+        this.panY = midY - imgY * newScale;
+        this.render();
+      }
+      return;
+    }
+
+    if (this.dragMode && e.touches.length === 1) {
+      e.preventDefault();
+      const rect = this.canvas.getBoundingClientRect();
+      const sx = e.touches[0].clientX - rect.left;
+      const sy = e.touches[0].clientY - rect.top;
+      this.lastTouchPos = { x: sx, y: sy };
+      this.updateDrag(sx, sy);
+    }
+  }
+
+  onTouchEnd(e) {
+    if (this.dragMode === "PINCH") {
+      this.dragMode = null;
+      this.pinchStartDist = null;
+      this.pinchStartCenter = null;
+      this.render();
+      return;
+    }
+
+    if (this.dragMode) {
+      const pos = this.lastTouchPos || { x: 0, y: 0 };
+      this.endDrag(pos.x, pos.y);
+    }
   }
 
   selectBox(boxId) {

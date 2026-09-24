@@ -87,8 +87,36 @@ Run the launcher script:
 `run.sh` will automatically:
 1. Create a Python virtual environment using `uv` (or standard venv).
 2. Install the package dependencies.
-3. Start the FastAPI server on `http://localhost:8321`.
-4. Open the interface in native app window mode via Chromium, or launch your default web browser.
+3. Start the FastAPI server on `0.0.0.0:8321`, accessible across your local Wi-Fi/LAN network.
+4. Display your PC's local IP (`http://192.168.x.x:8321`) and an ASCII QR code in the terminal.
+5. Open the interface locally in native app window mode via Chromium, or launch your default web browser.
+
+---
+
+## 📱 Remote Tablet & Server Workflow
+
+You can use your PC as the central scanning and storage server, while using a tablet (iPad, Android, etc.) as your portable scanning station next to the flatbed scanner:
+
+1. **Start the server on your PC**:
+   ```bash
+   ./run.sh
+   # Or without opening local browser on PC:
+   ./run.sh --no-browser
+   ```
+2. **Connect your tablet**:
+   - Point your tablet's camera at the **QR Code** printed in your PC's terminal (or click the **Tablet** button in the top bar to display the QR code).
+   - Alternatively, open `http://<YOUR_PC_IP>:8321` in your tablet's web browser (e.g. Safari or Chrome).
+3. **Scan and inspect from the tablet**:
+   - Tap **Scan Flatbed** from the tablet. The PC will trigger the physical USB scanner.
+   - Adjust crop boxes with fluid touch gestures: drag corner handles with fingers (optimized 24px touch targets), **pinch-to-zoom**, and **two-finger pan**.
+   - Browse and select destination folders on your PC directly from the tablet using the integrated **Web Folder Browser**.
+   - Validate and export photos: all processed, deskewed high-resolution photos are saved directly to your PC's hard drive!
+
+> [!TIP]
+> Ensure your PC and tablet are connected to the same Wi-Fi router. If you have an active firewall on Linux (`ufw`), ensure port 8321 is allowed:
+> ```bash
+> sudo ufw allow 8321/tcp
+> ```
 
 ---
 

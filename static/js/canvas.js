@@ -111,6 +111,7 @@ class ScanCanvas {
 
   initEvents() {
     window.addEventListener("resize", () => this.resizeCanvas());
+    window.addEventListener("orientationchange", () => setTimeout(() => this.resizeCanvas(), 250));
 
     this.canvas.addEventListener("wheel", (e) => {
       e.preventDefault();

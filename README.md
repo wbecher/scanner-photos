@@ -1,49 +1,72 @@
 # Photo Scanner & Deskew 📸
 
-A high-performance multi-photo scanning, auto-detection, cropping, and deskewing application designed for Linux desktop.
+A high-performance multi-photo scanning, auto-detection, cropping, and deskewing workstation designed for Linux desktop and remote tablet workflows.
 
-Scan multiple photos placed at arbitrary angles on a flatbed scanner in a single pass, auto-straighten them, review and validate them in batch, and export high-resolution individual image files with embedded DPI metadata.
+Scan multiple photos placed at arbitrary angles on a flatbed scanner in a single pass, auto-straighten them, review and validate them in batch across multiple pages, and export high-resolution individual image files with embedded DPI metadata.
+
+![Desktop Application Interface](docs/img/main_desktop.png)
 
 ---
 
-## ✨ Features
+## ✨ Key Features
 
-- **Automated Multi-Photo Detection**:
-  - Automatically identifies multiple photos placed simultaneously on a scanner flatbed.
-  - Handles tilted and rotated prints using sub-pixel perspective transformation (`cv2.warpPerspective` with Lanczos interpolation).
-  - Robust edge detection and morphological filtering supporting both light (white lid) and dark backgrounds.
-- **Multi-Page Batch Sessions**:
-  - Scan multiple sheets/pages consecutively in one workflow.
-  - Visual **Pages Strip** displays thumbnails, page numbering, and detected photo count per page.
-  - Seamlessly switch between pages to inspect and adjust crop boxes on the interactive canvas.
-  - Multi-file upload support (`Open File`) to import batches of scanned flatbed images at once.
-- **Hands-Free Keyboard Shortcut**:
-  - Press <kbd>Space</kbd> or <kbd>Ctrl</kbd>+<kbd>Enter</kbd> to immediately trigger the scan of the next page while swapping prints at the flatbed scanner.
-  - Intelligent protection prevents accidental triggers while typing in text inputs or while scanning is in progress.
-- **Interactive Fine-Tuning Canvas**:
-  - Smooth pan and zoom (scroll wheel, `+`, `-`, fit to screen).
-  - Drag corners to fine-tune perspective quadrilateral coordinates.
-  - Manual box creation (`Add Box`) and deletion.
-  - Live rotation (90° CW/CCW), fine angle adjustment slider, and margin trim.
-- **Unified Photo Validation & Review**:
-  - Consolidated gallery view showcasing **all identified photos across all pages**.
-  - Checkbox toggle to include or exclude photos from the export batch.
-  - Per-photo quick rotation, renaming, and "Adjust Crop" button to jump directly to the canvas coordinate.
-  - Filter tabs by page and bulk actions ("Select All" / "Deselect All").
-- **Batch Naming with Tokens**:
-  - Apply naming masks across all photos: `{date}`, `{index:03d}`, `{page}`.
-  - Example: `Family_Trip_{date}_{index:03d}` becomes `Family_Trip_20260923_001.jpg`, `002.jpg`, etc.
-- **Native Linux Directory Picker**:
-  - Click **"📁 Browse..."** to select output directories using the native Linux desktop file dialog (`zenity`).
-  - Shortcut button **"Open Folder"** opens the exported folder in your native Linux file manager (`xdg-open`).
-- **Flexible Export Settings**:
-  - Resolutions from 75 DPI up to 1200 DPI.
-  - Formats: JPEG (customizable compression quality), PNG (lossless), and TIFF (archival).
-  - Embedded DPI resolution metadata via Pillow.
-- **Bi-Lingual Interface**:
-  - Built-in instant switching between **English** and **Português**.
-- **Offline Demo Mode**:
-  - Built-in multi-page demo scanner simulator allows testing all detection, review, and export features without physical scanner hardware.
+### 🎯 Automated Multi-Photo Detection & Deskewing
+- **Simultaneous Detection**: Automatically identifies multiple individual prints placed in any orientation or angle on the flatbed in a single scan.
+- **Sub-Pixel Perspective Transformation**: Corrects perspective distortion and tilts with sub-degree precision using OpenCV (`cv2.warpPerspective` with Lanczos-4 interpolation).
+- **Interactive Multi-Point Canvas**: Drag corner handles with mouse or touch, add custom crop areas, adjust fine rotation angles, and trim photo borders in real-time.
+- **Adaptive Edge Detection**: Works seamlessly with both white scanner lids and dark scanning backgrounds.
+
+---
+
+### 🗂️ Multi-Page Batch Sessions
+- **Visual Pages Strip**: Scan dozens of flatbed pages consecutively. The visual carousel strip tracks thumbnails, page order, and photo counts per page.
+- **Persistent Server Session Cache**: Your scanned pages and crop configurations are automatically cached on the server. Close the browser, restart the server, or reconnect from another device without losing your progress.
+- **Hands-Free Scanning Shortcut**: Tap <kbd>Space</kbd> or <kbd>Ctrl</kbd>+<kbd>Enter</kbd> to trigger the next flatbed scan while swapping photo prints at the scanner.
+
+---
+
+### ✅ Unified Photo Validation & Review Gallery
+
+![Photo Validation & Review Gallery](docs/img/validation_modal.png)
+
+- **Consolidated Multi-Page Review**: Inspect all detected photos from every scanned page in one centralized, high-contrast review grid.
+- **Selective Batch Export**: Toggle checkboxes to include or exclude specific photos from the final batch export.
+- **Per-Photo Quick Fixes**: Rotate individual images by 90° CW/CCW, fine-tune names, or jump directly back to the canvas coordinate with "Adjust Crop".
+- **Dynamic Token Batch Naming**: Batch apply custom naming formats using pattern tokens such as `{date}`, `{index:03d}`, and `{page}` (e.g. `Family_Album_{date}_{index:03d}.jpg`).
+
+---
+
+### 📱 Remote Tablet Scanning & Real-Time LAN Sync
+
+| Tablet Touch Interface | Quick Connect QR Code |
+| :---: | :---: |
+| ![Tablet Landscape Interface](docs/img/tablet_landscape.png) | ![Tablet QR Connection](docs/img/tablet_qr_modal.png) |
+
+- **Place Your Tablet Next to the Scanner**: Turn an iPad, Android tablet, or phone into a portable remote control scanning console right next to your scanner.
+- **Instant Wi-Fi Pairing**: Click the remote icon or scan the ASCII QR code printed in the terminal to connect instantly on your local network.
+- **Real-Time WebSocket Synchronization**: Any scan, crop edit, or adjustment made on the tablet instantly updates the PC screen in real-time, and vice-versa.
+- **Touch-Optimized Gestures**: Pinch-to-zoom, two-finger pan, and 24px corner handles designed specifically for finger manipulation on capacitive touchscreens.
+- **Headless PC Mode**: Run the server with `--no-browser` on your PC without popping up local windows, managing the entire scanning workflow from your tablet.
+
+---
+
+### 📂 Integrated Server-Side Folder Browser
+
+![Server Folder Browser](docs/img/folder_browser_modal.png)
+
+- **Remote Directory Navigation**: Browse and select any folder on the host PC directly from your tablet or remote browser.
+- **Instant Shortcuts**: One-click access to Home (`~`), Pictures, Scans, Downloads, and Root (`/`).
+- **Create New Folders**: Create new destination subdirectories on the fly with permissions checks (`✓ Writable`).
+- **Native File Manager Integration**: Open destination folders on Linux with a single click (`xdg-open`).
+
+---
+
+### ⚙️ Archival-Grade Export & Customization
+- **High-Resolution Scanning**: Supports 75 DPI up to 1200 DPI (hardware permitting) via SANE.
+- **Archival Formats**: Save as JPEG (custom quality), lossless PNG, or uncompressed TIFF.
+- **Embedded DPI Metadata**: Saves actual physical resolution tags (EXIF / JFIF / TIFF tags) into exported files.
+- **Bilingual Support**: Built-in instant switching between **English** and **Português**.
+- **Hardware-Free Demo Mode**: Built-in multi-page demo scanner simulator allows testing all detection, review, and export features without physical scanner hardware.
 
 ---
 
@@ -100,7 +123,7 @@ You can use your PC as the central scanning and storage server, while using a ta
 1. **Start the server on your PC**:
    ```bash
    ./run.sh
-   # Or without opening local browser on PC:
+   # Or without opening a local browser on PC:
    ./run.sh --no-browser
    ```
 2. **Connect your tablet**:
@@ -171,16 +194,23 @@ sudo cp dist/scanner-photos /usr/local/bin/
 
 ```text
 scanner-photos/
+├── docs/
+│   └── img/                 # High-resolution application screenshots
+│       ├── main_desktop.png
+│       ├── validation_modal.png
+│       ├── tablet_landscape.png
+│       ├── tablet_qr_modal.png
+│       └── folder_browser_modal.png
 ├── src/
 │   └── scanner_photos/
 │       ├── __init__.py
-│       ├── main.py          # FastAPI application, REST endpoints & static server
+│       ├── main.py          # FastAPI application, REST endpoints, WebSockets & cache
 │       ├── scanner.py       # SANE / scanimage hardware integration
 │       └── vision.py        # OpenCV photo detection, deskewing & PIL export
 ├── static/
 │   ├── index.html           # Single-page application UI
 │   ├── css/
-│   │   └── style.css        # Modern dark-mode styling
+│   │   └── style.css        # Modern dark-mode styling & responsive layout
 │   └── js/
 │       ├── app.js           # Client orchestration & multi-page session state
 │       ├── canvas.js        # Interactive HTML5 Canvas coordinate editor

@@ -384,6 +384,25 @@ document.addEventListener("DOMContentLoaded", async () => {
   await restoreSessionFromServer();
   initWebSocket();
 
+  // Support direct modal opening via URL parameter (?modal=validation, tablet, folders)
+  const urlParams = new URLSearchParams(window.location.search);
+  if (urlParams.has("notoast")) {
+    const toastElem = document.getElementById("toastNotification");
+    if (toastElem) toastElem.style.display = "none";
+  }
+  if (urlParams.has("modal")) {
+    document.querySelectorAll(".modal-overlay").forEach(m => {
+      m.style.transition = "none";
+    });
+  }
+  if (urlParams.get("modal") === "validation") {
+    setTimeout(() => openValidationModal(), 400);
+  } else if (urlParams.get("modal") === "tablet") {
+    setTimeout(() => { if (connectTabletBtn) connectTabletBtn.click(); }, 400);
+  } else if (urlParams.get("modal") === "folders") {
+    setTimeout(() => { openFolderBrowser(null, urlParams.get("path") || "~"); }, 400);
+  }
+
   // Language switch
   langSelect.addEventListener("change", (e) => {
     setLanguage(e.target.value);
@@ -497,9 +516,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   }
 
-  function openFolderBrowser(targetInput) {
+  function openFolderBrowser(targetInput, startPath = null) {
     activeFolderBrowserTargetInput = targetInput;
-    const initial = targetInput ? targetInput.value : (appSettings.output_dir || "");
+    const initial = startPath || (targetInput ? targetInput.value : (appSettings.output_dir || ""));
     folderBrowserModal.classList.add("open");
     loadDirectories(initial);
   }

@@ -11,7 +11,7 @@ import threading
 from typing import List, Dict, Any, Optional
 import cv2
 import numpy as np
-from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Body
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Body, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -36,6 +36,7 @@ else:
 SCANS_DIR = os.path.join(CACHE_DIR, "scans")
 OUTPUT_DIR = os.path.expanduser("~/Pictures/Scans")
 SETTINGS_FILE = os.path.join(CONFIG_DIR, "settings.json")
+SESSION_FILE = os.path.join(SCANS_DIR, "session.json")
 
 os.makedirs(SCANS_DIR, exist_ok=True)
 os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -50,8 +51,89 @@ DEFAULT_SETTINGS = {
     "export_quality": 95,
     "language": "en",
     "has_borders": False,
-    "sensitivity": 0.5
+    "sensitivity": 0.5,
+    "open_browser_on_startup": True
 }
+
+
+class SessionManager:
+    """
+    Manages persistent project session cached on disk and synchronizes
+    multi-client state (PC, Tablet, Mobile) in real-time via WebSockets.
+    """
+    def __init__(self):
+        self.active_connections: List[WebSocket] = []
+        self.session_data: Dict[str, Any] = self.load_session()
+
+    def load_session(self) -> Dict[str, Any]:
+        if os.path.exists(SESSION_FILE):
+            try:
+                with open(SESSION_FILE, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    pages = data.get("pages", [])
+                    # Verify each page's scan file actually exists on disk
+                    valid_pages = []
+                    for p in pages:
+                        scan_id = p.get("scan_id")
+                        if scan_id and os.path.exists(os.path.join(SCANS_DIR, scan_id)):
+                            valid_pages.append(p)
+                    data["pages"] = valid_pages
+                    if not valid_pages:
+                        data["active_page_index"] = -1
+                    elif data.get("active_page_index", -1) >= len(valid_pages):
+                        data["active_page_index"] = len(valid_pages) - 1
+                    return data
+            except Exception as e:
+                print(f"Warning: Failed to load cached session from {SESSION_FILE}: {e}")
+        return {"active_page_index": -1, "pages": []}
+
+    def save_session(self, data: Dict[str, Any]):
+        self.session_data = data
+        try:
+            temp_file = f"{SESSION_FILE}.tmp"
+            with open(temp_file, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2)
+            os.replace(temp_file, SESSION_FILE)
+        except Exception as e:
+            print(f"Warning: Failed to write session to {SESSION_FILE}: {e}")
+
+    def clear_session(self, cleanup_files: bool = False):
+        if cleanup_files:
+            for p in self.session_data.get("pages", []):
+                sid = p.get("scan_id")
+                if sid:
+                    p_path = os.path.join(SCANS_DIR, sid)
+                    if os.path.exists(p_path):
+                        try:
+                            os.remove(p_path)
+                        except Exception:
+                            pass
+        self.session_data = {"active_page_index": -1, "pages": []}
+        if os.path.exists(SESSION_FILE):
+            try:
+                os.remove(SESSION_FILE)
+            except Exception:
+                pass
+
+    async def connect(self, websocket: WebSocket):
+        await websocket.accept()
+        self.active_connections.append(websocket)
+
+    def disconnect(self, websocket: WebSocket):
+        if websocket in self.active_connections:
+            self.active_connections.remove(websocket)
+
+    async def broadcast(self, message: dict, sender: Optional[WebSocket] = None):
+        for conn in list(self.active_connections):
+            if conn != sender:
+                try:
+                    await conn.send_json(message)
+                except Exception:
+                    self.disconnect(conn)
+
+
+session_manager = SessionManager()
+
 
 def load_settings() -> dict:
     if os.path.exists(SETTINGS_FILE):
@@ -698,6 +780,86 @@ def api_create_directory(req: CreateDirRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# Session & Cache Endpoints
+@app.get("/api/session")
+def api_get_session():
+    return {
+        "status": "ok",
+        "session": session_manager.session_data
+    }
+
+
+@app.post("/api/session")
+async def api_save_session(body: dict = Body(...)):
+    session_data = body.get("session", body)
+    sender_id = body.get("sender_id")
+    session_manager.save_session(session_data)
+    await session_manager.broadcast({
+        "type": "session_updated",
+        "session": session_data,
+        "sender_id": sender_id
+    })
+    return {
+        "status": "ok",
+        "session": session_manager.session_data
+    }
+
+
+@app.post("/api/session/clear")
+async def api_clear_session(body: Optional[dict] = Body(None)):
+    cleanup = body.get("cleanup_files", False) if body else False
+    sender_id = body.get("sender_id") if body else None
+    session_manager.clear_session(cleanup_files=cleanup)
+    await session_manager.broadcast({
+        "type": "session_cleared",
+        "sender_id": sender_id
+    })
+    return {
+        "status": "ok",
+        "message": "Session cache cleared successfully"
+    }
+
+
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await session_manager.connect(websocket)
+    try:
+        while True:
+            data = await websocket.receive_json()
+            msg_type = data.get("type")
+            sender_id = data.get("sender_id")
+
+            if msg_type == "sync_session":
+                new_session = data.get("session")
+                if new_session:
+                    session_manager.save_session(new_session)
+                    await session_manager.broadcast({
+                        "type": "session_updated",
+                        "session": new_session,
+                        "sender_id": sender_id
+                    }, sender=websocket)
+            elif msg_type == "scan_started":
+                await session_manager.broadcast({
+                    "type": "scan_started",
+                    "sender_id": sender_id
+                }, sender=websocket)
+            elif msg_type == "scan_finished":
+                await session_manager.broadcast({
+                    "type": "scan_finished",
+                    "sender_id": sender_id
+                }, sender=websocket)
+            elif msg_type == "clear_session":
+                session_manager.clear_session(cleanup_files=data.get("cleanup_files", False))
+                await session_manager.broadcast({
+                    "type": "session_cleared",
+                    "sender_id": sender_id
+                }, sender=websocket)
+    except WebSocketDisconnect:
+        session_manager.disconnect(websocket)
+    except Exception:
+        session_manager.disconnect(websocket)
+
+
 # Serve static files
 app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="static")
 
@@ -716,6 +878,11 @@ def cli():
     parser.add_argument("--version", action="version", version="Photo Scanner & Deskew 0.1.0")
     args = parser.parse_args()
 
+    settings = load_settings()
+    env_no_browser = os.environ.get("SCANNER_NO_BROWSER", "").strip().lower() in ("1", "true", "yes")
+    setting_no_browser = not settings.get("open_browser_on_startup", True)
+    should_open_browser = not (args.no_browser or env_no_browser or setting_no_browser)
+
     local_ip = get_local_ip()
     local_url = f"http://localhost:{args.port}"
     remote_url = f"http://{local_ip}:{args.port}"
@@ -724,9 +891,11 @@ def cli():
     print("📸 Photo Scanner & Deskew - Server Running")
     print(f"🖥️  Local PC:      {local_url}")
     print(f"📱 Tablet/Remote: {remote_url}")
+    if not should_open_browser:
+        print("⚡ Headless mode: Browser GUI will NOT open automatically.")
     print("=" * 60)
 
-    if not args.no_browser:
+    if should_open_browser:
         def open_browser():
             time.sleep(0.8)
             for browser_cmd in ["chromium", "google-chrome", "brave"]:
@@ -751,3 +920,4 @@ def cli():
 
 if __name__ == "__main__":
     cli()
+

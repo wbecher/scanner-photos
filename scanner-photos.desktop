@@ -6,3 +6,10 @@ Icon=scanner
 Terminal=false
 Type=Application
 Categories=Graphics;Photography;Scanning;
+Actions=ServerOnly;
+
+[Desktop Action ServerOnly]
+Name=Photo Scanner Server (Headless / No Browser)
+Name[pt_BR]=Servidor Photo Scanner (Sem navegador)
+Exec=/home/wbecher/git/scanner-photos/run.sh --no-browser
+

@@ -21,6 +21,17 @@ for arg in "$@"; do
     fi
 done
 
+if [ "$NO_BROWSER" -eq 0 ]; then
+    if [ "$SCANNER_NO_BROWSER" = "1" ] || [ "$SCANNER_NO_BROWSER" = "true" ]; then
+        NO_BROWSER=1
+    else
+        SETTING_BROWSER=$(.venv/bin/python3 -c "import json, os; s = json.load(open('settings.json')) if os.path.exists('settings.json') else {}; print(s.get('open_browser_on_startup', True))" 2>/dev/null || echo "True")
+        if [ "$SETTING_BROWSER" = "False" ] || [ "$SETTING_BROWSER" = "false" ]; then
+            NO_BROWSER=1
+        fi
+    fi
+fi
+
 # Start uvicorn server in background listening on all network interfaces (0.0.0.0)
 .venv/bin/uvicorn scanner_photos.main:app --host 0.0.0.0 --port $PORT &
 SERVER_PID=$!

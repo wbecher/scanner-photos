@@ -96,6 +96,280 @@ document.addEventListener("DOMContentLoaded", async () => {
   const confirmCreateFolderBtn = document.getElementById("confirmCreateFolderBtn");
   const folderWritableBadge = document.getElementById("folderWritableBadge");
 
+  // Elements: Clear Project & Sync
+  const syncBadge = document.getElementById("syncBadge");
+  const clearProjectBtn = document.getElementById("clearProjectBtn");
+  const confirmClearModal = document.getElementById("confirmClearModal");
+  const closeConfirmClearBtn = document.getElementById("closeConfirmClearBtn");
+  const cancelClearBtn = document.getElementById("cancelClearBtn");
+  const executeClearBtn = document.getElementById("executeClearBtn");
+  const settingOpenBrowser = document.getElementById("settingOpenBrowser");
+
+  // Real-time Sync & WebSocket Identification
+  const myClientId = "client_" + Math.random().toString(36).substring(2, 9) + "_" + Date.now();
+  let ws = null;
+  let wsReconnectTimer = null;
+  let syncDebounceTimer = null;
+
+  function updateSyncStatus(status) {
+    if (!syncBadge) return;
+    const textEl = syncBadge.querySelector(".sync-text");
+    if (status === "connected") {
+      syncBadge.className = "sync-indicator";
+      if (textEl) textEl.textContent = t("connectedSync");
+    } else if (status === "syncing") {
+      syncBadge.className = "sync-indicator syncing";
+      if (textEl) textEl.textContent = t("syncing");
+    } else {
+      syncBadge.className = "sync-indicator disconnected";
+      if (textEl) textEl.textContent = "Offline";
+    }
+  }
+
+  function initWebSocket() {
+    clearTimeout(wsReconnectTimer);
+    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const wsUrl = `${protocol}//${window.location.host}/ws`;
+
+    try {
+      ws = new WebSocket(wsUrl);
+
+      ws.onopen = () => {
+        updateSyncStatus("connected");
+      };
+
+      ws.onmessage = async (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.sender_id === myClientId) return;
+
+          if (data.type === "session_updated") {
+            updateSyncStatus("syncing");
+            await applyRemoteSession(data.session);
+            updateSyncStatus("connected");
+          } else if (data.type === "session_cleared") {
+            resetLocalSession();
+            showToast(t("projectCleared"), "success");
+          } else if (data.type === "scan_started") {
+            showLoading(t("scanningWait"));
+          } else if (data.type === "scan_finished") {
+            hideLoading();
+          }
+        } catch (err) {
+          console.error("WS message error:", err);
+        }
+      };
+
+      ws.onclose = () => {
+        updateSyncStatus("disconnected");
+        wsReconnectTimer = setTimeout(initWebSocket, 2500);
+      };
+
+      ws.onerror = () => {
+        updateSyncStatus("disconnected");
+        try { ws.close(); } catch(e) {}
+      };
+    } catch (err) {
+      updateSyncStatus("disconnected");
+      wsReconnectTimer = setTimeout(initWebSocket, 2500);
+    }
+  }
+
+  function syncSessionToServer(immediate = false) {
+    clearTimeout(syncDebounceTimer);
+    const doSync = async () => {
+      try {
+        updateSyncStatus("syncing");
+        const pagesToSync = sessionPages.map((p) => ({
+          id: p.id,
+          scan_id: p.scan_id,
+          pageNumber: p.pageNumber,
+          imageWidth: p.imageWidth,
+          imageHeight: p.imageHeight,
+          photos: (p.photos || []).map((ph) => ({
+            id: ph.id,
+            corners: ph.corners,
+            angle: ph.angle,
+            rotation_90_steps: ph.rotation_90_steps || 0,
+            fine_angle_deg: ph.fine_angle_deg || 0.0,
+            margin_px: ph.margin_px || 0,
+            filename: ph.filename,
+            included: ph.included !== false,
+            preview_url: ph.preview_url
+          }))
+        }));
+
+        await fetch("/api/session", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            session: {
+              active_page_index: activePageIndex,
+              pages: pagesToSync
+            },
+            sender_id: myClientId
+          })
+        });
+        updateSyncStatus("connected");
+      } catch (err) {
+        console.error("Session sync error:", err);
+      }
+    };
+
+    if (immediate) {
+      doSync();
+    } else {
+      syncDebounceTimer = setTimeout(doSync, 300);
+    }
+  }
+
+  async function applyRemoteSession(remoteSession) {
+    if (!remoteSession || !Array.isArray(remoteSession.pages)) return;
+
+    const prevSelectedBox = scanCanvas ? scanCanvas.selectedBoxId : null;
+    const newPages = [];
+
+    for (let i = 0; i < remoteSession.pages.length; i++) {
+      const rp = remoteSession.pages[i];
+      let localP = sessionPages.find((p) => p.id === rp.id && p.scan_id === rp.scan_id);
+      let img = null;
+      if (localP && localP.imageElement) {
+        img = localP.imageElement;
+      } else {
+        img = new Image();
+        img.src = `/api/scans/${rp.scan_id}`;
+        await new Promise((resolve) => {
+          img.onload = resolve;
+          img.onerror = resolve;
+        });
+      }
+
+      newPages.push({
+        id: rp.id,
+        scan_id: rp.scan_id,
+        pageNumber: rp.pageNumber || (i + 1),
+        imageWidth: rp.imageWidth || img.naturalWidth,
+        imageHeight: rp.imageHeight || img.naturalHeight,
+        imageElement: img,
+        photos: rp.photos || []
+      });
+    }
+
+    sessionPages = newPages;
+
+    if (sessionPages.length === 0) {
+      activePageIndex = -1;
+      if (scanCanvas) {
+        scanCanvas.image = null;
+        scanCanvas.boxes = [];
+        scanCanvas.render();
+      }
+      renderCards();
+      renderPagesStrip();
+      updateTotalCounts();
+      return;
+    }
+
+    let targetIdx = remoteSession.active_page_index;
+    if (targetIdx === undefined || targetIdx < 0 || targetIdx >= sessionPages.length) {
+      targetIdx = Math.min(Math.max(activePageIndex, 0), sessionPages.length - 1);
+    }
+
+    activePageIndex = targetIdx;
+    const curr = sessionPages[activePageIndex];
+    if (scanCanvas) {
+      scanCanvas.setImage(curr.imageElement, curr.imageWidth, curr.imageHeight);
+      scanCanvas.setBoxes(curr.photos);
+      if (prevSelectedBox && curr.photos.some((p) => p.id === prevSelectedBox)) {
+        scanCanvas.selectBox(prevSelectedBox);
+      }
+    }
+
+    renderPagesStrip();
+    renderCards();
+    updateTotalCounts();
+    if (validationModal.classList.contains("open")) {
+      renderValidationTabs();
+      renderValidationGrid(currentValidationFilter);
+    }
+  }
+
+  function resetLocalSession() {
+    sessionPages = [];
+    activePageIndex = -1;
+    if (scanCanvas) {
+      scanCanvas.image = null;
+      scanCanvas.boxes = [];
+      scanCanvas.render();
+    }
+    renderCards();
+    renderPagesStrip();
+    updateTotalCounts();
+    if (validationModal.classList.contains("open")) {
+      closeValidationModal();
+    }
+  }
+
+  async function restoreSessionFromServer() {
+    try {
+      const res = await fetch("/api/session");
+      const data = await res.json();
+      if (data.status === "ok" && data.session && data.session.pages && data.session.pages.length > 0) {
+        await applyRemoteSession(data.session);
+        showToast(t("projectRestored", { count: sessionPages.length }), "success");
+      }
+    } catch (err) {
+      console.error("Failed to restore session from server:", err);
+    }
+  }
+
+  async function executeClearProject() {
+    try {
+      showLoading(t("scanningWait"));
+      await fetch("/api/session/clear", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cleanup_files: false, sender_id: myClientId })
+      });
+      resetLocalSession();
+      showToast(t("projectCleared"), "success");
+    } catch (err) {
+      showToast("Failed to clear project: " + err.message, "error");
+    } finally {
+      hideLoading();
+      if (confirmClearModal) confirmClearModal.classList.remove("open");
+    }
+  }
+
+  // Clear Project Modal bindings
+  if (clearProjectBtn) {
+    clearProjectBtn.addEventListener("click", () => {
+      if (sessionPages.length === 0) {
+        showToast(t("projectCleared"), "success");
+        return;
+      }
+      if (confirmClearModal) confirmClearModal.classList.add("open");
+    });
+  }
+
+  if (closeConfirmClearBtn) {
+    closeConfirmClearBtn.addEventListener("click", () => {
+      confirmClearModal.classList.remove("open");
+    });
+  }
+
+  if (cancelClearBtn) {
+    cancelClearBtn.addEventListener("click", () => {
+      confirmClearModal.classList.remove("open");
+    });
+  }
+
+  if (executeClearBtn) {
+    executeClearBtn.addEventListener("click", () => {
+      executeClearProject();
+    });
+  }
+
   // Initialize Canvas
   scanCanvas = new ScanCanvas(
     canvasElement,
@@ -103,10 +377,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     (updatedBox) => onBoxUpdated(updatedBox)
   );
 
-  // Initialize UI & load settings
+  // Initialize UI, settings, and restore server cached project
   applyTranslations();
   await loadSettings();
   await loadScanners();
+  await restoreSessionFromServer();
+  initWebSocket();
 
   // Language switch
   langSelect.addEventListener("change", (e) => {
@@ -125,6 +401,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     settingNamingPattern.value = appSettings.naming_template || "Photo_{date}_{index:03d}";
     settingFormat.value = appSettings.export_format || "JPEG";
     settingQuality.value = appSettings.export_quality || 95;
+    if (settingOpenBrowser) {
+      settingOpenBrowser.checked = appSettings.open_browser_on_startup !== false;
+    }
     settingsModal.classList.add("open");
   });
 
@@ -139,6 +418,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     appSettings.naming_template = settingNamingPattern.value;
     appSettings.export_format = settingFormat.value;
     appSettings.export_quality = parseInt(settingQuality.value, 10) || 95;
+    if (settingOpenBrowser) {
+      appSettings.open_browser_on_startup = settingOpenBrowser.checked;
+    }
 
     await fetch("/api/settings", {
       method: "POST",
@@ -655,6 +937,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
       renderPagesStrip();
       await switchPage(sessionPages.length - 1);
+      syncSessionToServer(true);
 
       showToast(t("multiScanPrompt", { page: pageNumber, count: pageObj.photos.length }), "success");
     } catch (err) {
@@ -702,6 +985,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     renderPagesStrip();
     updateTotalCounts();
+    syncSessionToServer(true);
   }
 
   function renderPagesStrip() {
@@ -787,6 +1071,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       }
       renderPagesStrip();
       updateTotalCounts();
+      syncSessionToServer(true);
     } catch (err) {
       showToast("Detection error: " + err.message, "error");
     } finally {
@@ -885,16 +1170,19 @@ document.addEventListener("DOMContentLoaded", async () => {
       const titleInput = card.querySelector(".photo-title-input");
       titleInput.addEventListener("input", (e) => {
         photo.filename = e.target.value;
+        syncSessionToServer();
       });
 
       card.querySelector(".btn-rotate-ccw").addEventListener("click", async () => {
         photo.rotation_90_steps = ((photo.rotation_90_steps || 0) + 3) % 4;
         await updateCardPreview(photo, page.scan_id);
+        syncSessionToServer();
       });
 
       card.querySelector(".btn-rotate-cw").addEventListener("click", async () => {
         photo.rotation_90_steps = ((photo.rotation_90_steps || 0) + 1) % 4;
         await updateCardPreview(photo, page.scan_id);
+        syncSessionToServer();
       });
 
       card.querySelector(".btn-delete").addEventListener("click", () => {
@@ -904,6 +1192,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         renderCards();
         renderPagesStrip();
         updateTotalCounts();
+        syncSessionToServer();
       });
 
       const angleSlider = card.querySelector(".fine-angle-slider");
@@ -915,6 +1204,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       });
       angleSlider.addEventListener("change", async () => {
         await updateCardPreview(photo, page.scan_id);
+        syncSessionToServer();
       });
 
       const marginSlider = card.querySelector(".margin-slider");
@@ -926,6 +1216,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       });
       marginSlider.addEventListener("change", async () => {
         await updateCardPreview(photo, page.scan_id);
+        syncSessionToServer();
       });
 
       photoCardsList.appendChild(card);
@@ -971,6 +1262,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     clearTimeout(debounceTimer);
     debounceTimer = setTimeout(async () => {
       await updateCardPreview(photo, page.scan_id);
+      syncSessionToServer();
     }, 250);
   }
 

@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>Photo Scanner & Deskew</title>
   <link rel="stylesheet" href="/css/style.css">
 </head>
@@ -15,7 +15,12 @@
         <line x1="8" y1="21" x2="16" y2="21"></line>
         <line x1="12" y1="17" x2="12" y2="21"></line>
       </svg>
-      <span data-i18n="appTitle">Photo Scanner & Deskew</span>
+      <span class="logo-text" data-i18n="appTitle">Photo Scanner & Deskew</span>
+      <!-- Real-time sync badge -->
+      <div id="syncBadge" class="sync-indicator" title="Sincronizado com o servidor" data-i18n-title="connectedSync">
+        <span class="sync-dot"></span>
+        <span class="sync-text" data-i18n="connectedSync">Sync</span>
+      </div>
     </div>
 
     <!-- Scanner & Hardware Controls -->
@@ -63,7 +68,7 @@
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
       </button>
 
-      <button id="connectTabletBtn" class="btn btn-secondary" title="Connect Tablet / Remote Access" data-i18n-title="connectTabletTitle">
+      <button id="connectTabletBtn" class="btn btn-secondary tablet-only-hide" title="Connect Tablet / Remote Access" data-i18n-title="connectTabletTitle">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="2" width="16" height="20" rx="2" ry="2"></rect><line x1="12" y1="18" x2="12.01" y2="18"></line></svg>
         <span data-i18n="connectTablet">Tablet</span>
       </button>
@@ -85,10 +90,16 @@
     <div class="pages-list" id="pagesList">
       <!-- dynamic page badges -->
     </div>
-    <button id="addPageBtn" class="btn-add-page" title="Scan or add next page (Space)">
-      <span>+</span> <span data-i18n="addPage">+ Next Page</span>
-      <kbd class="kbd-shortcut" data-i18n="spaceKey">Space</kbd>
-    </button>
+    <div class="pages-actions">
+      <button id="addPageBtn" class="btn-add-page" title="Scan or add next page (Space)">
+        <span>+</span> <span data-i18n="addPage">+ Next Page</span>
+        <kbd class="kbd-shortcut" data-i18n="spaceKey">Space</kbd>
+      </button>
+      <button id="clearProjectBtn" class="btn-clear-project" title="Limpar Projeto / Novo Projeto" data-i18n-title="clearProject">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"></path><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+        <span data-i18n="clearProject">Limpar</span>
+      </button>
+    </div>
   </div>
 
   <!-- Main Application Body -->
@@ -270,10 +281,35 @@
           <label data-i18n="quality">JPEG Quality (80 - 100)</label>
           <input type="number" id="settingQuality" min="80" max="100" value="95">
         </div>
+        <div class="form-group-checkbox" style="display: flex; align-items: center; gap: 8px; margin-top: 4px;">
+          <input type="checkbox" id="settingOpenBrowser" checked style="width: auto; cursor: pointer;">
+          <label for="settingOpenBrowser" data-i18n="openBrowserStartup" style="cursor: pointer; font-size: 0.82rem; color: var(--text-main);">
+            Open browser on PC automatically when server starts
+          </label>
+        </div>
       </div>
       <div class="modal-footer">
         <button id="cancelSettingsBtn" class="btn btn-secondary" data-i18n="close">Close</button>
         <button id="saveSettingsBtn" class="btn btn-primary" data-i18n="saveSettings">Save Settings</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Confirm Clear Project Modal -->
+  <div id="confirmClearModal" class="modal-overlay">
+    <div class="modal-dialog" style="max-width: 440px;">
+      <div class="modal-header">
+        <h3 data-i18n="clearProject">Clear Project</h3>
+        <button id="closeConfirmClearBtn" class="tool-btn">✕</button>
+      </div>
+      <div class="modal-body" style="padding: 16px;">
+        <p style="font-size: 0.9rem; line-height: 1.5; color: var(--text-main);" data-i18n="confirmClearProject">
+          Are you sure you want to clear the current project? All unsaved scanned pages will be removed from cache.
+        </p>
+      </div>
+      <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 10px; padding: 12px 16px;">
+        <button id="cancelClearBtn" class="btn btn-secondary" data-i18n="cancel">Cancel</button>
+        <button id="executeClearBtn" class="btn btn-danger" data-i18n="clearProject">Clear Cache</button>
       </div>
     </div>
   </div>

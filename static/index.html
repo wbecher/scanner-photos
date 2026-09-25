@@ -287,6 +287,65 @@
             Open browser on PC automatically when server starts
           </label>
         </div>
+
+        <!-- Keyboard & Loupe Tuning Section -->
+        <div style="border-top: 1px solid var(--border-color); margin: 6px 0;"></div>
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <h4 style="font-size: 0.88rem; font-weight: 600; color: var(--accent-color); margin: 0;" data-i18n="keyboardAndLoupe">
+            Corner Tuning & Shortcuts
+          </h4>
+          <button id="resetShortcutsBtn" class="btn btn-secondary" style="font-size: 0.72rem; padding: 3px 8px;" type="button" data-i18n="resetDefaults">
+            Reset Defaults
+          </button>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+          <div class="form-group">
+            <label style="font-size: 0.78rem;" data-i18n="loupeMagnification">Loupe Magnification</label>
+            <select id="settingLoupeZoom">
+              <option value="2">2x</option>
+              <option value="3">3x (Default)</option>
+              <option value="4">4x</option>
+              <option value="5">5x</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label style="font-size: 0.78rem;" data-i18n="loupeDiameter">Loupe Size</label>
+            <select id="settingLoupeSize">
+              <option value="120">120px</option>
+              <option value="140">140px (Default)</option>
+              <option value="160">160px</option>
+              <option value="180">180px</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+          <div class="form-group">
+            <label style="font-size: 0.76rem;" data-i18n="shortcutCycleCorner">Cycle Corner (Forward)</label>
+            <input type="text" id="shortcutCycleCorner" class="shortcut-input" readonly value="Tab">
+          </div>
+          <div class="form-group">
+            <label style="font-size: 0.76rem;" data-i18n="shortcutCycleCornerReverse">Cycle Corner (Reverse)</label>
+            <input type="text" id="shortcutCycleCornerReverse" class="shortcut-input" readonly value="Shift+Tab">
+          </div>
+          <div class="form-group">
+            <label style="font-size: 0.76rem;" data-i18n="shortcutNudgeUp">Nudge Up</label>
+            <input type="text" id="shortcutNudgeUp" class="shortcut-input" readonly value="ArrowUp">
+          </div>
+          <div class="form-group">
+            <label style="font-size: 0.76rem;" data-i18n="shortcutNudgeDown">Nudge Down</label>
+            <input type="text" id="shortcutNudgeDown" class="shortcut-input" readonly value="ArrowDown">
+          </div>
+          <div class="form-group">
+            <label style="font-size: 0.76rem;" data-i18n="shortcutNudgeLeft">Nudge Left</label>
+            <input type="text" id="shortcutNudgeLeft" class="shortcut-input" readonly value="ArrowLeft">
+          </div>
+          <div class="form-group">
+            <label style="font-size: 0.76rem;" data-i18n="shortcutNudgeRight">Nudge Right</label>
+            <input type="text" id="shortcutNudgeRight" class="shortcut-input" readonly value="ArrowRight">
+          </div>
+        </div>
       </div>
       <div class="modal-footer">
         <button id="cancelSettingsBtn" class="btn btn-secondary" data-i18n="close">Close</button>

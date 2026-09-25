@@ -125,9 +125,18 @@ const translations = {
     pageLabel: "Page {num}",
     photosCount: "{count} photos",
     lastPageDiscarded: "Last page was removed from session.",
-    scanInProgress: "Scanner is running...",
-    demoLoaded: "Demo page loaded!",
-    scanSuccessCue: "Page {page} scanned! Swap photos and scan again."
+    scanSuccessCue: "Page {page} scanned! Swap photos and scan again.",
+    keyboardAndLoupe: "Corner Tuning & Shortcuts",
+    resetDefaults: "Reset Defaults",
+    loupeMagnification: "Loupe Magnification",
+    loupeDiameter: "Loupe Size",
+    shortcutCycleCorner: "Cycle Corner (Forward)",
+    shortcutCycleCornerReverse: "Cycle Corner (Reverse)",
+    shortcutNudgeUp: "Nudge Up",
+    shortcutNudgeDown: "Nudge Down",
+    shortcutNudgeLeft: "Nudge Left",
+    shortcutNudgeRight: "Nudge Right",
+    shortcutExitFocus: "Exit Focus / Cancel"
   },
   pt: {
     appTitle: "Scanner de Fotos & Alinhamento",
@@ -254,10 +263,20 @@ const translations = {
     discard: "Descartar",
     pageLabel: "Página {num}",
     photosCount: "{count} fotos",
-    lastPageDiscarded: "A última página foi removida da sessão.",
     scanInProgress: "Scanner em execução...",
     demoLoaded: "Página de demonstração carregada!",
-    scanSuccessCue: "Página {page} escaneada! Troque as fotos e escaneie a próxima."
+    scanSuccessCue: "Página {page} escaneada! Troque as fotos e escaneie a próxima.",
+    keyboardAndLoupe: "Ajuste de Cantos & Atalhos",
+    resetDefaults: "Restaurar Padrões",
+    loupeMagnification: "Ampliação da Lupa",
+    loupeDiameter: "Tamanho da Lupa",
+    shortcutCycleCorner: "Avançar Canto",
+    shortcutCycleCornerReverse: "Voltar Canto",
+    shortcutNudgeUp: "Mover p/ Cima",
+    shortcutNudgeDown: "Mover p/ Baixo",
+    shortcutNudgeLeft: "Mover p/ Esquerda",
+    shortcutNudgeRight: "Mover p/ Direita",
+    shortcutExitFocus: "Sair do Foco / Cancelar"
   }
 };
 

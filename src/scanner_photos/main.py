@@ -52,7 +52,18 @@ DEFAULT_SETTINGS = {
     "language": "en",
     "has_borders": False,
     "sensitivity": 0.5,
-    "open_browser_on_startup": True
+    "open_browser_on_startup": True,
+    "loupe_zoom": 3.0,
+    "loupe_size": 140,
+    "shortcuts": {
+        "cycle_corner": "Tab",
+        "cycle_corner_reverse": "Shift+Tab",
+        "nudge_up": "ArrowUp",
+        "nudge_down": "ArrowDown",
+        "nudge_left": "ArrowLeft",
+        "nudge_right": "ArrowRight",
+        "exit_focus": "Escape"
+    }
 }
 
 
@@ -136,16 +147,21 @@ session_manager = SessionManager()
 
 
 def load_settings() -> dict:
+    import copy
+    res = copy.deepcopy(DEFAULT_SETTINGS)
     if os.path.exists(SETTINGS_FILE):
         try:
             with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
                 saved = json.load(f)
-                res = DEFAULT_SETTINGS.copy()
-                res.update(saved)
+                for k, v in saved.items():
+                    if isinstance(v, dict) and isinstance(res.get(k), dict):
+                        res[k].update(v)
+                    else:
+                        res[k] = v
                 return res
         except Exception:
             pass
-    return DEFAULT_SETTINGS.copy()
+    return res
 
 def save_settings_to_disk(settings: dict):
     with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
@@ -685,7 +701,11 @@ def api_get_settings():
 @app.post("/api/settings")
 def api_save_settings(settings: dict = Body(...)):
     current = load_settings()
-    current.update(settings)
+    for k, v in settings.items():
+        if isinstance(v, dict) and isinstance(current.get(k), dict):
+            current[k].update(v)
+        else:
+            current[k] = v
     save_settings_to_disk(current)
     return {"status": "ok", "settings": current}
 

@@ -58,6 +58,15 @@ document.addEventListener("DOMContentLoaded", async () => {
   const settingNamingPattern = document.getElementById("settingNamingPattern");
   const settingFormat = document.getElementById("settingFormat");
   const settingQuality = document.getElementById("settingQuality");
+  const settingLoupeZoom = document.getElementById("settingLoupeZoom");
+  const settingLoupeSize = document.getElementById("settingLoupeSize");
+  const shortcutCycleCorner = document.getElementById("shortcutCycleCorner");
+  const shortcutCycleCornerReverse = document.getElementById("shortcutCycleCornerReverse");
+  const shortcutNudgeUp = document.getElementById("shortcutNudgeUp");
+  const shortcutNudgeDown = document.getElementById("shortcutNudgeDown");
+  const shortcutNudgeLeft = document.getElementById("shortcutNudgeLeft");
+  const shortcutNudgeRight = document.getElementById("shortcutNudgeRight");
+  const resetShortcutsBtn = document.getElementById("resetShortcutsBtn");
 
   // Elements: Validation Modal
   const validationModal = document.getElementById("validationModal");
@@ -110,6 +119,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   let ws = null;
   let wsReconnectTimer = null;
   let syncDebounceTimer = null;
+  let isFetchingSessionPreviews = false;
 
   function updateSyncStatus(status) {
     if (!syncBadge) return;
@@ -377,11 +387,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     (selectedId) => onSelectionChanged(selectedId),
     (updatedBox) => onBoxUpdated(updatedBox)
   );
+  window.scanCanvas = scanCanvas;
 
   // Initialize UI, settings, and restore server cached project
   applyTranslations();
   await loadSettings();
-  await loadScanners();
+  loadScanners();
   await restoreSessionFromServer();
   initWebSocket();
 
@@ -424,6 +435,20 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (settingOpenBrowser) {
       settingOpenBrowser.checked = appSettings.open_browser_on_startup !== false;
     }
+    if (settingLoupeZoom) {
+      settingLoupeZoom.value = String(Math.round(appSettings.loupe_zoom || 3));
+    }
+    if (settingLoupeSize) {
+      settingLoupeSize.value = String(appSettings.loupe_size || 140);
+    }
+    const sc = appSettings.shortcuts || {};
+    if (shortcutCycleCorner) shortcutCycleCorner.value = sc.cycle_corner || "Tab";
+    if (shortcutCycleCornerReverse) shortcutCycleCornerReverse.value = sc.cycle_corner_reverse || "Shift+Tab";
+    if (shortcutNudgeUp) shortcutNudgeUp.value = sc.nudge_up || "ArrowUp";
+    if (shortcutNudgeDown) shortcutNudgeDown.value = sc.nudge_down || "ArrowDown";
+    if (shortcutNudgeLeft) shortcutNudgeLeft.value = sc.nudge_left || "ArrowLeft";
+    if (shortcutNudgeRight) shortcutNudgeRight.value = sc.nudge_right || "ArrowRight";
+
     settingsModal.classList.add("open");
   });
 
@@ -433,6 +458,38 @@ document.addEventListener("DOMContentLoaded", async () => {
   closeSettingsBtn.addEventListener("click", closeSettings);
   cancelSettingsBtn.addEventListener("click", closeSettings);
 
+  if (resetShortcutsBtn) {
+    resetShortcutsBtn.addEventListener("click", () => {
+      if (shortcutCycleCorner) shortcutCycleCorner.value = "Tab";
+      if (shortcutCycleCornerReverse) shortcutCycleCornerReverse.value = "Shift+Tab";
+      if (shortcutNudgeUp) shortcutNudgeUp.value = "ArrowUp";
+      if (shortcutNudgeDown) shortcutNudgeDown.value = "ArrowDown";
+      if (shortcutNudgeLeft) shortcutNudgeLeft.value = "ArrowLeft";
+      if (shortcutNudgeRight) shortcutNudgeRight.value = "ArrowRight";
+      if (settingLoupeZoom) settingLoupeZoom.value = "3";
+      if (settingLoupeSize) settingLoupeSize.value = "140";
+    });
+  }
+
+  // Key combination capture on shortcut inputs
+  document.querySelectorAll(".shortcut-input").forEach((inp) => {
+    inp.addEventListener("focus", () => inp.select());
+    inp.addEventListener("keydown", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.key === "Escape") {
+        inp.blur();
+        return;
+      }
+      let combo = [];
+      if (e.shiftKey && e.key !== "Shift") combo.push("Shift");
+      if (e.ctrlKey && e.key !== "Control") combo.push("Ctrl");
+      if (e.altKey && e.key !== "Alt") combo.push("Alt");
+      combo.push(e.key);
+      inp.value = combo.join("+");
+    });
+  });
+
   saveSettingsBtn.addEventListener("click", async () => {
     appSettings.output_dir = settingOutputDir.value;
     appSettings.naming_template = settingNamingPattern.value;
@@ -440,6 +497,26 @@ document.addEventListener("DOMContentLoaded", async () => {
     appSettings.export_quality = parseInt(settingQuality.value, 10) || 95;
     if (settingOpenBrowser) {
       appSettings.open_browser_on_startup = settingOpenBrowser.checked;
+    }
+    if (settingLoupeZoom) {
+      appSettings.loupe_zoom = parseFloat(settingLoupeZoom.value) || 3.0;
+    }
+    if (settingLoupeSize) {
+      appSettings.loupe_size = parseInt(settingLoupeSize.value, 10) || 140;
+    }
+    appSettings.shortcuts = {
+      cycle_corner: shortcutCycleCorner ? shortcutCycleCorner.value : "Tab",
+      cycle_corner_reverse: shortcutCycleCornerReverse ? shortcutCycleCornerReverse.value : "Shift+Tab",
+      nudge_up: shortcutNudgeUp ? shortcutNudgeUp.value : "ArrowUp",
+      nudge_down: shortcutNudgeDown ? shortcutNudgeDown.value : "ArrowDown",
+      nudge_left: shortcutNudgeLeft ? shortcutNudgeLeft.value : "ArrowLeft",
+      nudge_right: shortcutNudgeRight ? shortcutNudgeRight.value : "ArrowRight",
+      exit_focus: "Escape"
+    };
+
+    if (scanCanvas) {
+      scanCanvas.setShortcuts(appSettings.shortcuts);
+      scanCanvas.setLoupePreferences(appSettings.loupe_zoom, appSettings.loupe_size);
     }
 
     await fetch("/api/settings", {
@@ -1171,7 +1248,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   }
 
-  let isFetchingSessionPreviews = false;
   async function ensureSessionPreviews() {
     if (isFetchingSessionPreviews) return;
     const missing = [];
@@ -1613,6 +1689,12 @@ document.addEventListener("DOMContentLoaded", async () => {
       }
       if (appSettings.default_dpi) {
         dpiSelect.value = String(appSettings.default_dpi);
+      }
+      if (scanCanvas) {
+        if (appSettings.shortcuts) {
+          scanCanvas.setShortcuts(appSettings.shortcuts);
+        }
+        scanCanvas.setLoupePreferences(appSettings.loupe_zoom, appSettings.loupe_size);
       }
       updateExportLabel();
     } catch (e) {

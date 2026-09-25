@@ -29,6 +29,24 @@ class ScanCanvas {
     this.handleRadius = 8; // Screen px for mouse
     this.touchHandleRadius = 24; // Screen px for finger touch targets on tablet
 
+    // Corner adjustment, Loupe & Focus states
+    this.focusedCornerIndex = -1;
+    this.loupeZoom = 3.0;
+    this.loupeSize = 140;
+    this.showLoupe = false;
+    this.loupePos = { x: 0, y: 0 };
+    this.loupeTarget = { x: 0, y: 0 };
+    this.isTouchDrag = false;
+    this.shortcuts = {
+      cycle_corner: "Tab",
+      cycle_corner_reverse: "Shift+Tab",
+      nudge_up: "ArrowUp",
+      nudge_down: "ArrowDown",
+      nudge_left: "ArrowLeft",
+      nudge_right: "ArrowRight",
+      exit_focus: "Escape"
+    };
+
     // Touch and Pinch states
     this.pinchStartDist = null;
     this.pinchStartScale = 1.0;
@@ -38,6 +56,109 @@ class ScanCanvas {
 
     this.initEvents();
     this.resizeCanvas();
+  }
+
+  setShortcuts(shortcuts) {
+    if (shortcuts && typeof shortcuts === "object") {
+      this.shortcuts = { ...this.shortcuts, ...shortcuts };
+    }
+  }
+
+  setLoupePreferences(zoom, size) {
+    if (zoom) this.loupeZoom = parseFloat(zoom);
+    if (size) this.loupeSize = parseInt(size, 10);
+  }
+
+  computeLoupeScreenPos(sx, sy, isTouch = false) {
+    const d = this.loupeSize || 140;
+    const r = d / 2;
+    const margin = 12;
+
+    let lx, ly;
+    if (isTouch) {
+      lx = sx;
+      ly = sy - 90 - r;
+    } else {
+      lx = sx + 50 + r;
+      ly = sy - 50 - r;
+    }
+
+    // Boundary collision adjustments
+    if (ly - r < margin) {
+      ly = sy + (isTouch ? 80 : 50) + r;
+    }
+    if (ly + r > this.canvas.height - margin) {
+      ly = this.canvas.height - margin - r;
+    }
+    if (lx + r > this.canvas.width - margin) {
+      lx = sx - (isTouch ? 0 : 50) - r;
+    }
+    if (lx - r < margin) {
+      lx = margin + r;
+    }
+
+    return { x: lx, y: ly };
+  }
+
+  focusNextCorner(reverse = false) {
+    if (!this.boxes || this.boxes.length === 0) return;
+    if (!this.selectedBoxId) {
+      this.selectBox(this.boxes[0].id);
+    }
+    const box = this.boxes.find(b => b.id === this.selectedBoxId);
+    if (!box) return;
+
+    if (this.focusedCornerIndex === -1) {
+      this.focusedCornerIndex = reverse ? 3 : 0;
+    } else {
+      this.focusedCornerIndex = (this.focusedCornerIndex + (reverse ? 3 : 1)) % 4;
+    }
+
+    // Auto-pan viewport to center on the focused corner
+    const [cx, cy] = box.corners[this.focusedCornerIndex];
+    const targetScale = Math.max(this.scale, 1.0);
+    this.scale = targetScale;
+    this.panX = this.canvas.width / 2 - cx * this.scale;
+    this.panY = this.canvas.height / 2 - cy * this.scale;
+
+    this.showLoupe = true;
+    const cornerScreen = this.imageToScreen(cx, cy);
+    this.loupeTarget = { x: cx, y: cy };
+    this.loupePos = this.computeLoupeScreenPos(cornerScreen.x, cornerScreen.y, false);
+
+    this.render();
+  }
+
+  nudgeFocusedCorner(dx, dy) {
+    if (!this.selectedBoxId || this.focusedCornerIndex < 0) return;
+    const box = this.boxes.find(b => b.id === this.selectedBoxId);
+    if (!box) return;
+
+    box.corners[this.focusedCornerIndex][0] = Math.max(0, Math.min(this.imageWidth, box.corners[this.focusedCornerIndex][0] + dx));
+    box.corners[this.focusedCornerIndex][1] = Math.max(0, Math.min(this.imageHeight, box.corners[this.focusedCornerIndex][1] + dy));
+
+    // Recompute angle
+    const pt0 = box.corners[0];
+    const pt1 = box.corners[1];
+    const rad = Math.atan2(pt1[1] - pt0[1], pt1[0] - pt0[0]);
+    box.angle = Math.round((rad * 180 / Math.PI) * 100) / 100;
+
+    const [cx, cy] = box.corners[this.focusedCornerIndex];
+    this.showLoupe = true;
+    this.loupeTarget = { x: cx, y: cy };
+    const cornerScreen = this.imageToScreen(cx, cy);
+    this.loupePos = this.computeLoupeScreenPos(cornerScreen.x, cornerScreen.y, false);
+
+    if (this.onCropChange) {
+      this.onCropChange(box);
+    }
+    this.render();
+  }
+
+  clearFocusedCorner() {
+    this.focusedCornerIndex = -1;
+    this.showLoupe = false;
+    this.render();
   }
 
   resizeCanvas() {
@@ -60,6 +181,8 @@ class ScanCanvas {
     if (this.boxes.length > 0 && !this.selectedBoxId) {
       this.selectedBoxId = this.boxes[0].id;
     }
+    this.focusedCornerIndex = -1;
+    this.showLoupe = false;
     this.render();
   }
 
@@ -131,7 +254,73 @@ class ScanCanvas {
     window.addEventListener("touchcancel", (e) => this.onTouchEnd(e), { passive: false });
 
     window.addEventListener("keydown", (e) => {
-      if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
+      if (["INPUT", "TEXTAREA", "SELECT"].includes(e.target.tagName)) return;
+      if (document.querySelector(".modal-overlay.open")) return;
+
+      const sc = this.shortcuts || {};
+      const cycleKey = sc.cycle_corner || "Tab";
+      const cycleRevKey = sc.cycle_corner_reverse || "Shift+Tab";
+      const nudgeUp = sc.nudge_up || "ArrowUp";
+      const nudgeDown = sc.nudge_down || "ArrowDown";
+      const nudgeLeft = sc.nudge_left || "ArrowLeft";
+      const nudgeRight = sc.nudge_right || "ArrowRight";
+      const exitFocus = sc.exit_focus || "Escape";
+
+      const matchesKey = (targetKey, evt) => {
+        if (!targetKey) return false;
+        if (targetKey === "Tab" && evt.key === "Tab" && !evt.shiftKey) return true;
+        if (targetKey === "Shift+Tab" && evt.key === "Tab" && evt.shiftKey) return true;
+        return evt.key === targetKey || evt.code === targetKey;
+      };
+
+      // Corner cycling via Tab or custom shortcut
+      if (matchesKey(cycleRevKey, e)) {
+        if (this.selectedBoxId || this.boxes.length > 0) {
+          e.preventDefault();
+          this.focusNextCorner(true);
+          return;
+        }
+      } else if (matchesKey(cycleKey, e)) {
+        if (this.selectedBoxId || this.boxes.length > 0) {
+          e.preventDefault();
+          this.focusNextCorner(false);
+          return;
+        }
+      }
+
+      // Exit corner focus / loupe
+      if (matchesKey(exitFocus, e) || e.key === "Escape") {
+        if (this.focusedCornerIndex >= 0 || this.showLoupe) {
+          this.clearFocusedCorner();
+          return;
+        }
+      }
+
+      // Nudging focused corner via arrow keys
+      if (this.focusedCornerIndex >= 0 && this.selectedBoxId) {
+        const step = e.shiftKey ? 10 : 1;
+        if (matchesKey(nudgeUp, e)) {
+          e.preventDefault();
+          this.nudgeFocusedCorner(0, -step);
+          return;
+        }
+        if (matchesKey(nudgeDown, e)) {
+          e.preventDefault();
+          this.nudgeFocusedCorner(0, step);
+          return;
+        }
+        if (matchesKey(nudgeLeft, e)) {
+          e.preventDefault();
+          this.nudgeFocusedCorner(-step, 0);
+          return;
+        }
+        if (matchesKey(nudgeRight, e)) {
+          e.preventDefault();
+          this.nudgeFocusedCorner(step, 0);
+          return;
+        }
+      }
+
       if (e.key === "Delete" || e.key === "Backspace") {
         this.deleteSelectedBox();
       } else if (e.key === "+" || e.key === "=") {
@@ -201,7 +390,15 @@ class ScanCanvas {
       this.dragMode = "DRAG_CORNER";
       this.selectedBoxId = cornerHit.boxId;
       this.activeCornerIndex = cornerHit.cornerIndex;
+      this.focusedCornerIndex = cornerHit.cornerIndex;
       this.dragStartMouse = { x: sx, y: sy };
+      this.isTouchDrag = isTouch;
+      const box = this.boxes.find(b => b.id === this.selectedBoxId);
+      if (box) {
+        this.showLoupe = true;
+        this.loupeTarget = { x: box.corners[this.activeCornerIndex][0], y: box.corners[this.activeCornerIndex][1] };
+        this.loupePos = this.computeLoupeScreenPos(sx, sy, isTouch);
+      }
       this.onSelectionChange(this.selectedBoxId);
       this.render();
       return;
@@ -212,6 +409,8 @@ class ScanCanvas {
     if (boxHit) {
       this.dragMode = "DRAG_BOX";
       this.selectedBoxId = boxHit;
+      this.focusedCornerIndex = -1;
+      this.showLoupe = false;
       this.dragStartMouse = { x: sx, y: sy };
       const box = this.boxes.find(b => b.id === boxHit);
       this.dragStartBoxCorners = box.corners.map(c => [...c]);
@@ -224,6 +423,8 @@ class ScanCanvas {
     this.dragMode = "PAN";
     this.dragStartMouse = { x: sx, y: sy };
     this.selectedBoxId = null;
+    this.focusedCornerIndex = -1;
+    this.showLoupe = false;
     this.onSelectionChange(null);
     this.render();
   }
@@ -248,6 +449,9 @@ class ScanCanvas {
           Math.max(0, Math.min(this.imageWidth, imgPt.x)),
           Math.max(0, Math.min(this.imageHeight, imgPt.y))
         ];
+        this.showLoupe = true;
+        this.loupeTarget = { x: box.corners[this.activeCornerIndex][0], y: box.corners[this.activeCornerIndex][1] };
+        this.loupePos = this.computeLoupeScreenPos(sx, sy, this.isTouchDrag);
         this.render();
       }
     } else if (this.dragMode === "DRAG_BOX") {
@@ -314,11 +518,21 @@ class ScanCanvas {
       this.newBoxStart = null;
     } else if (this.dragMode === "DRAG_CORNER" || this.dragMode === "DRAG_BOX") {
       const box = this.boxes.find(b => b.id === this.selectedBoxId);
-      if (box && this.onCropChange) {
-        this.onCropChange(box);
+      if (box) {
+        if (this.dragMode === "DRAG_CORNER") {
+          const pt0 = box.corners[0];
+          const pt1 = box.corners[1];
+          const rad = Math.atan2(pt1[1] - pt0[1], pt1[0] - pt0[0]);
+          box.angle = Math.round((rad * 180 / Math.PI) * 100) / 100;
+        }
+        if (this.onCropChange) {
+          this.onCropChange(box);
+        }
       }
     }
 
+    this.showLoupe = false;
+    this.isTouchDrag = false;
     this.dragMode = null;
     this.activeCornerIndex = -1;
     this.dragStartBoxCorners = null;
@@ -436,6 +650,10 @@ class ScanCanvas {
   }
 
   selectBox(boxId) {
+    if (this.selectedBoxId !== boxId) {
+      this.focusedCornerIndex = -1;
+      this.showLoupe = false;
+    }
     this.selectedBoxId = boxId;
     this.render();
   }
@@ -444,6 +662,8 @@ class ScanCanvas {
     if (!this.selectedBoxId) return;
     this.boxes = this.boxes.filter(b => b.id !== this.selectedBoxId);
     this.selectedBoxId = this.boxes.length > 0 ? this.boxes[0].id : null;
+    this.focusedCornerIndex = -1;
+    this.showLoupe = false;
     this.onSelectionChange(this.selectedBoxId);
     this.render();
   }
@@ -470,6 +690,11 @@ class ScanCanvas {
       const isSelected = box.id === this.selectedBoxId;
       this.drawBox(box, i + 1, isSelected);
     }
+
+    // Draw magnifying loupe HUD if active
+    if (this.showLoupe) {
+      this.drawLoupe();
+    }
   }
 
   drawBox(box, number, isSelected) {
@@ -495,14 +720,42 @@ class ScanCanvas {
     ctx.stroke();
 
     // Corner handles
+    const cornerTags = ["TL", "TR", "BR", "BL"];
     for (let c = 0; c < 4; c++) {
-      ctx.beginPath();
-      ctx.arc(pts[c].x, pts[c].y, this.handleRadius, 0, Math.PI * 2);
-      ctx.fillStyle = isSelected ? "#f59e0b" : "#38bdf8";
-      ctx.fill();
-      ctx.lineWidth = 2;
-      ctx.strokeStyle = "#ffffff";
-      ctx.stroke();
+      const isFocusedCorner = isSelected && c === this.focusedCornerIndex;
+      if (isFocusedCorner) {
+        // Outer pulsing/focus ring
+        ctx.beginPath();
+        ctx.arc(pts[c].x, pts[c].y, this.handleRadius + 6, 0, Math.PI * 2);
+        ctx.strokeStyle = "#38bdf8";
+        ctx.lineWidth = 2.5;
+        ctx.setLineDash([4, 3]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Highlighted inner handle
+        ctx.beginPath();
+        ctx.arc(pts[c].x, pts[c].y, this.handleRadius + 2, 0, Math.PI * 2);
+        ctx.fillStyle = "#ffffff";
+        ctx.fill();
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = "#f59e0b";
+        ctx.stroke();
+
+        // Corner label indicator (TL, TR, BR, BL)
+        ctx.font = "bold 9px sans-serif";
+        ctx.fillStyle = "#0f172a";
+        const ctw = ctx.measureText(cornerTags[c]).width;
+        ctx.fillText(cornerTags[c], pts[c].x - ctw / 2, pts[c].y + 3);
+      } else {
+        ctx.beginPath();
+        ctx.arc(pts[c].x, pts[c].y, this.handleRadius, 0, Math.PI * 2);
+        ctx.fillStyle = isSelected ? "#f59e0b" : "#38bdf8";
+        ctx.fill();
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = "#ffffff";
+        ctx.stroke();
+      }
     }
 
     // Badge with Photo Number & Angle
@@ -525,6 +778,102 @@ class ScanCanvas {
 
     ctx.fillStyle = isSelected ? "#000000" : "#ffffff";
     ctx.fillText(badgeText, badgeX + 2, badgeY);
+
+    ctx.restore();
+  }
+
+  drawLoupe() {
+    if (!this.showLoupe || !this.image) return;
+    const { ctx } = this;
+    const d = this.loupeSize || 140;
+    const r = d / 2;
+    const { x: lx, y: ly } = this.loupePos;
+    const { x: tx, y: ty } = this.loupeTarget;
+    const zoom = this.loupeZoom || 3.0;
+
+    ctx.save();
+
+    // 1. Draw outer shadow & bezel
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(lx, ly, r + 4, 0, Math.PI * 2);
+    ctx.shadowColor = "rgba(0, 0, 0, 0.65)";
+    ctx.shadowBlur = 18;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 6;
+    ctx.fillStyle = "#0f172a";
+    ctx.fill();
+    ctx.restore();
+
+    // 2. Clip circular viewport
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(lx, ly, r, 0, Math.PI * 2);
+    ctx.clip();
+
+    ctx.fillStyle = "#020617";
+    ctx.fillRect(lx - r, ly - r, d, d);
+
+    // Crisp pixelated sampling for precision alignment
+    ctx.imageSmoothingEnabled = false;
+
+    const sw = d / zoom;
+    const sh = d / zoom;
+    const sx = tx - sw / 2;
+    const sy = ty - sh / 2;
+
+    ctx.drawImage(this.image, sx, sy, sw, sh, lx - r, ly - r, d, d);
+
+    // 3. Draw crosshair guide at exact center
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.9)";
+    const chGap = 5;
+    const chLen = 24;
+
+    ctx.beginPath();
+    ctx.moveTo(lx - chLen, ly);
+    ctx.lineTo(lx - chGap, ly);
+    ctx.moveTo(lx + chGap, ly);
+    ctx.lineTo(lx + chLen, ly);
+    ctx.moveTo(lx, ly - chLen);
+    ctx.lineTo(lx, ly - chGap);
+    ctx.moveTo(lx, ly + chGap);
+    ctx.lineTo(lx, ly + chLen);
+    ctx.stroke();
+
+    // Crosshair drop shadow lines for contrast against bright images
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = "rgba(0, 0, 0, 0.5)";
+    ctx.strokeRect(lx - 2, ly - 2, 4, 4);
+
+    // Center focal dot
+    ctx.beginPath();
+    ctx.arc(lx, ly, 2.5, 0, Math.PI * 2);
+    ctx.fillStyle = "#f59e0b";
+    ctx.fill();
+
+    ctx.restore(); // end clip
+
+    // 4. Outer metallic ring border
+    ctx.beginPath();
+    ctx.arc(lx, ly, r, 0, Math.PI * 2);
+    ctx.lineWidth = 3.5;
+    ctx.strokeStyle = "#38bdf8";
+    ctx.stroke();
+
+    // 5. Magnification badge
+    ctx.font = "bold 10px monospace";
+    const zoomText = `${zoom.toFixed(1)}x`;
+    const tw = ctx.measureText(zoomText).width;
+    ctx.fillStyle = "rgba(15, 23, 42, 0.85)";
+    ctx.beginPath();
+    ctx.roundRect(lx - tw / 2 - 6, ly + r - 16, tw + 12, 14, 4);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.3)";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.fillStyle = "#38bdf8";
+    ctx.fillText(zoomText, lx - tw / 2, ly + r - 5);
 
     ctx.restore();
   }

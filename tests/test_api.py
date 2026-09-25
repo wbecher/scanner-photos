@@ -209,3 +209,47 @@ def test_api_choose_directory(monkeypatch):
     assert res_cancel.json()["status"] == "cancelled"
 
 
+def test_api_settings_shortcuts_and_loupe(tmp_path, monkeypatch):
+    test_settings_file = str(tmp_path / "test_settings.json")
+    monkeypatch.setattr("scanner_photos.main.SETTINGS_FILE", test_settings_file)
+
+    # 1. Fetch current default settings
+    res = client.get("/api/settings")
+    assert res.status_code == 200
+    settings = res.json()
+    assert "shortcuts" in settings
+    assert settings["shortcuts"]["cycle_corner"] == "Tab"
+    assert settings["shortcuts"]["cycle_corner_reverse"] == "Shift+Tab"
+    assert settings["shortcuts"]["nudge_up"] == "ArrowUp"
+    assert settings["loupe_zoom"] == 3.0
+    assert settings["loupe_size"] == 140
+
+    # 2. Update with custom shortcuts and loupe zoom
+    custom_payload = {
+        "loupe_zoom": 4.5,
+        "loupe_size": 160,
+        "shortcuts": {
+            "cycle_corner": "KeyC",
+            "nudge_up": "KeyW"
+        }
+    }
+    save_res = client.post("/api/settings", json=custom_payload)
+    assert save_res.status_code == 200
+    saved = save_res.json()["settings"]
+    assert saved["loupe_zoom"] == 4.5
+    assert saved["loupe_size"] == 160
+    assert saved["shortcuts"]["cycle_corner"] == "KeyC"
+    assert saved["shortcuts"]["nudge_up"] == "KeyW"
+    # Unchanged shortcut keys should remain preserved
+    assert saved["shortcuts"]["cycle_corner_reverse"] == "Shift+Tab"
+    assert saved["shortcuts"]["nudge_down"] == "ArrowDown"
+
+    # 3. Subsequent GET returns persisted updated values
+    get_res = client.get("/api/settings")
+    assert get_res.status_code == 200
+    retrieved = get_res.json()
+    assert retrieved["loupe_zoom"] == 4.5
+    assert retrieved["shortcuts"]["cycle_corner"] == "KeyC"
+    assert retrieved["shortcuts"]["cycle_corner_reverse"] == "Shift+Tab"
+
+

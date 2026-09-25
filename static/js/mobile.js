@@ -114,6 +114,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let toastTimer = null;
   function showToast(msg, type = "normal") {
     if (!mobileToast) return;
+    if (new URLSearchParams(window.location.search).has("notoast")) return;
     mobileToastMsg.textContent = msg;
     mobileToast.className = "mobile-toast show";
     if (type === "error") mobileToast.classList.add("toast-error");

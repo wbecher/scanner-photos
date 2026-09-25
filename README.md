@@ -36,17 +36,17 @@ Scan multiple photos placed at arbitrary angles on a flatbed scanner in a single
 
 ---
 
-### 📱 Remote Tablet Scanning & Real-Time LAN Sync
+### 📱 Remote Smartphone & Tablet Workflows
 
-| Tablet Touch Interface | Quick Connect QR Code |
-| :---: | :---: |
-| ![Tablet Landscape Interface](docs/img/tablet_landscape.png) | ![Tablet QR Connection](docs/img/tablet_qr_modal.png) |
+| Smartphone Remote (`/mobile`) | Quick Connect QR Code | Tablet Touch Interface |
+| :---: | :---: | :---: |
+| ![Smartphone Remote Interface](docs/img/mobile_remote.png) | ![Smartphone & Tablet QR Connection](docs/img/tablet_qr_modal.png) | ![Tablet Landscape Interface](docs/img/tablet_landscape.png) |
 
-- **Place Your Tablet Next to the Scanner**: Turn an iPad, Android tablet, or phone into a portable remote control scanning console right next to your scanner.
-- **Instant Wi-Fi Pairing**: Click the remote icon or scan the ASCII QR code printed in the terminal to connect instantly on your local network.
-- **Real-Time WebSocket Synchronization**: Any scan, crop edit, or adjustment made on the tablet instantly updates the PC screen in real-time, and vice-versa.
-- **Touch-Optimized Gestures**: Pinch-to-zoom, two-finger pan, and 24px corner handles designed specifically for finger manipulation on capacitive touchscreens.
-- **Headless PC Mode**: Run the server with `--no-browser` on your PC without popping up local windows, managing the entire scanning workflow from your tablet.
+- **Place Your Smartphone Next to the Scanner**: Turn an iPhone or Android phone into a high-speed sequential scanning console right next to your scanner.
+- **Instant Wi-Fi Pairing**: Click the remote icon or scan the QR code to connect instantly on your local network.
+- **Real-Time WebSocket Synchronization**: Any scan triggered on mobile instantly updates the PC screen in real-time, and vice-versa.
+- **Touch-Optimized Gestures on Tablet**: Pinch-to-zoom, two-finger pan, and 24px corner handles designed specifically for finger manipulation on capacitive touchscreens.
+- **Headless PC Mode**: Run the server with `--no-browser` on your PC without popping up local windows, managing the entire scanning workflow remotely.
 
 ---
 
@@ -200,6 +200,7 @@ scanner-photos/
 │       ├── validation_modal.png
 │       ├── tablet_landscape.png
 │       ├── tablet_qr_modal.png
+│       ├── mobile_remote.png
 │       └── folder_browser_modal.png
 ├── src/
 │   └── scanner_photos/
@@ -208,15 +209,20 @@ scanner-photos/
 │       ├── scanner.py       # SANE / scanimage hardware integration
 │       └── vision.py        # OpenCV photo detection, deskewing & PIL export
 ├── static/
-│   ├── index.html           # Single-page application UI
+│   ├── index.html           # Single-page desktop & tablet application UI
+│   ├── mobile.html          # Lightweight mobile smartphone remote console
 │   ├── css/
-│   │   └── style.css        # Modern dark-mode styling & responsive layout
+│   │   ├── style.css        # Modern dark-mode styling & responsive layout
+│   │   └── mobile.css       # Touch-optimized mobile remote styling
 │   └── js/
-│       ├── app.js           # Client orchestration & multi-page session state
+│       ├── app.js           # Desktop orchestration & multi-page session state
+│       ├── mobile.js        # Mobile sequential scan controller & LAN sync
 │       ├── canvas.js        # Interactive HTML5 Canvas coordinate editor
 │       └── i18n.js          # Internationalization dictionary (EN / PT)
 ├── tests/
 │   ├── test_api.py          # FastAPI endpoints & batch export tests
+│   ├── test_remote.py       # Mobile route, QR code, and server-info tests
+│   ├── test_session.py      # Session cache persistence and WebSocket tests
 │   └── test_vision.py       # Computer vision deskew and detection unit tests
 ├── pyproject.toml           # Project metadata & Python dependencies
 ├── build.sh                 # PyInstaller one-click standalone compilation script

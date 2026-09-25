@@ -81,3 +81,62 @@ def test_save_photo_with_dpi(tmp_path):
         dpi = im.info.get("dpi")
         assert dpi is not None
         assert int(round(dpi[0])) == 600
+
+
+def test_detect_asymmetric_three_photos_with_edge_shadow():
+    # Simulate a scanner flatbed (height=1600, width=1200) with white lid
+    bed = np.full((1600, 1200, 3), 245, dtype=np.uint8)
+
+    # Simulate flatbed right bezel shadow (thin strip along extreme right edge)
+    bed[:, 1194:1200] = (40, 40, 40)
+
+    # Photo 1: Landscape orientation on top (centered)
+    bed[100:450, 200:850] = (40, 90, 160)
+    # Photo 2: Portrait orientation on bottom-left
+    bed[650:1350, 100:550] = (70, 150, 60)
+    # Photo 3: Portrait orientation on bottom-right (close to right edge/bezel)
+    bed[650:1350, 650:1120] = (160, 80, 120)
+
+    results = detect_photos(bed, min_area_ratio=0.015, sensitivity=0.5)
+
+    # Exactly 3 photos should be detected
+    assert len(results) == 3
+
+    # Check natural top-to-bottom, left-to-right order
+    # Photo 1 should be the top photo
+    p1 = results[0]
+    p2 = results[1]
+    p3 = results[2]
+
+    # Verify no photo spans full height (which happened before when bridging to bezel)
+    for p in results:
+        assert p["height"] < 1400
+        assert p["width"] < 1100
+
+    # p1 is on top (centroid y around 275)
+    corners1 = np.array(p1["corners"])
+    cy1 = corners1[:, 1].mean()
+    assert cy1 < 500
+
+    # p2 is bottom-left, p3 is bottom-right
+    corners2 = np.array(p2["corners"])
+    corners3 = np.array(p3["corners"])
+    cx2 = corners2[:, 0].mean()
+    cx3 = corners3[:, 0].mean()
+    assert cx2 < cx3
+
+
+def test_real_scan_asymmetric_3photos_if_present():
+    real_scan_path = "scans/scan_20260925_112537_600dpi.png"
+    if not os.path.exists(real_scan_path):
+        pytest.skip("Sample scan file not present")
+
+    img = cv2.imread(real_scan_path)
+    results = detect_photos(img)
+
+    assert len(results) == 3
+    # Verify neither photo erroneously spans the flatbed height (7016px)
+    for p in results:
+        assert p["height"] < 5000
+        assert p["width"] < 5000
+

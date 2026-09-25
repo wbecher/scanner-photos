@@ -83,11 +83,21 @@ def detect_photos(
         edges = cv2.Canny(blurred, 30, 100)
         combined = cv2.bitwise_or(thresh, edges)
 
-    # Morphological closing to fill holes inside photos and merge internal textures
-    kernel_size = 15 if not has_borders else 21
+    # 1. Suppress thin outer border / bezel shadow artifacts at glass edges
+    border_margin = 6
+    if working_w > 2 * border_margin and working_h > 2 * border_margin:
+        mask = np.ones_like(combined, dtype=np.uint8) * 255
+        mask[:border_margin, :] = 0
+        mask[-border_margin:, :] = 0
+        mask[:, :border_margin] = 0
+        mask[:, -border_margin:] = 0
+        combined = cv2.bitwise_and(combined, mask)
+
+    # 2. Morphological closing to fill holes inside photos and merge internal textures without expanding outer borders
+    kernel_size = 11 if not has_borders else 15
     kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (kernel_size, kernel_size))
     closed = cv2.morphologyEx(combined, cv2.MORPH_CLOSE, kernel)
-    closed = cv2.dilate(closed, kernel, iterations=1)
+    # Note: cv2.dilate is intentionally omitted to avoid bridging adjacent photos or flatbed frame shadows
 
     # Find external contours
     contours, _ = cv2.findContours(closed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -95,35 +105,54 @@ def detect_photos(
     min_area = (working_w * working_h) * min_area_ratio
     max_area = (working_w * working_h) * max_area_ratio
 
-    results: List[Dict[str, Any]] = []
-    idx = 1
-
-    # Sort contours by position (top to bottom, left to right)
-    valid_contours = []
+    valid_candidates = []
     for cnt in contours:
         area = cv2.contourArea(cnt)
-        if min_area <= area <= max_area:
-            valid_contours.append(cnt)
+        if not (min_area <= area <= max_area):
+            continue
 
-    # Sort top-to-bottom
-    def contour_center_y(cnt):
-        M = cv2.moments(cnt)
-        return M["m01"] / M["m00"] if M["m00"] != 0 else 0
-
-    valid_contours.sort(key=contour_center_y)
-
-    for cnt in valid_contours:
         # Get rotated bounding rectangle
         rect = cv2.minAreaRect(cnt)
         (center_x, center_y), (w, h), angle = rect
 
-        # Filter out thin slivers / edge shadows
-        if w < 20 or h < 20:
+        # Filter out thin slivers or scanner rail artifacts
+        if min(w, h) < 20:
             continue
         aspect = max(w, h) / min(w, h)
         if aspect > 6.0:
             continue
 
+        # Flatbed rail check: discard contours spanning almost entire dimension with narrow width
+        if (h >= 0.88 * working_h and w <= 35) or (w >= 0.88 * working_w and h <= 35):
+            continue
+
+        # Geometric solidity check: real photos are solid rectangles
+        rect_area = w * h
+        if rect_area <= 0:
+            continue
+        solidity = area / rect_area
+        if solidity < 0.65:
+            continue
+
+        valid_candidates.append({
+            "contour": cnt,
+            "rect": rect,
+            "cx": center_x,
+            "cy": center_y,
+            "w": w,
+            "h": h,
+            "area": area,
+            "solidity": solidity
+        })
+
+    # Sort photos naturally: top-to-bottom, left-to-right with row grouping
+    row_band = max(20.0, working_h * 0.12)
+    valid_candidates.sort(key=lambda item: (round(item["cy"] / row_band), item["cx"]))
+
+    results: List[Dict[str, Any]] = []
+    idx = 1
+    for item in valid_candidates:
+        rect = item["rect"]
         box = cv2.boxPoints(rect)
         # Scale back to original full-resolution coordinates
         box_full = box / scale
@@ -146,7 +175,7 @@ def detect_photos(
             "width": round(width_full, 1),
             "height": round(height_full, 1),
             "angle": round(angle_deg, 2),
-            "confidence": 0.95
+            "confidence": round(min(0.99, max(0.85, item["solidity"])), 2)
         })
         idx += 1
 

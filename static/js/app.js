@@ -292,6 +292,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       renderValidationTabs();
       renderValidationGrid(currentValidationFilter);
     }
+    ensureSessionPreviews();
   }
 
   function resetLocalSession() {
@@ -982,14 +983,16 @@ document.addEventListener("DOMContentLoaded", async () => {
         margin_px: 0,
         filename: `Photo_${String(existingPhotoCount + idx + 1).padStart(3, "0")}`,
         included: true,
-        preview_url: null
+        preview_url: p.preview_url || null
       }));
 
       sessionPages.push(pageObj);
 
-      // Fetch previews for this page
+      // Fetch previews for this page if missing
       for (const ph of pageObj.photos) {
-        await fetchPreviewForPhoto(ph, pageObj.scan_id);
+        if (!ph.preview_url) {
+          await fetchPreviewForPhoto(ph, pageObj.scan_id);
+        }
       }
 
       renderPagesStrip();
@@ -1136,7 +1139,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   }
 
-  async function fetchPreviewForPhoto(photo, scanId) {
+  const pendingPreviews = new Set();
+  async function fetchPreviewForPhoto(photo, scanId, force = false) {
+    if (!photo || !scanId) return;
+    if (!force && photo.preview_url) return;
+    if (pendingPreviews.has(photo.id)) return;
+    pendingPreviews.add(photo.id);
     try {
       const res = await fetch("/api/preview-crop", {
         method: "POST",
@@ -1153,11 +1161,57 @@ document.addEventListener("DOMContentLoaded", async () => {
         })
       });
       const data = await res.json();
-      if (res.ok) {
+      if (res.ok && data.preview_url) {
         photo.preview_url = data.preview_url;
       }
     } catch (e) {
       console.error("Preview crop error:", e);
+    } finally {
+      pendingPreviews.delete(photo.id);
+    }
+  }
+
+  let isFetchingSessionPreviews = false;
+  async function ensureSessionPreviews() {
+    if (isFetchingSessionPreviews) return;
+    const missing = [];
+    sessionPages.forEach((page) => {
+      page.photos.forEach((ph) => {
+        if (!ph.preview_url) {
+          missing.push({ photo: ph, scanId: page.scan_id });
+        }
+      });
+    });
+
+    if (missing.length === 0) return;
+    isFetchingSessionPreviews = true;
+
+    try {
+      await Promise.allSettled(
+        missing.map(async ({ photo, scanId }) => {
+          await fetchPreviewForPhoto(photo, scanId);
+          const imgEl = document.getElementById(`img_${photo.id}`);
+          const spinEl = document.getElementById(`spinner_${photo.id}`);
+          if (imgEl && photo.preview_url) {
+            imgEl.src = photo.preview_url;
+            imgEl.style.display = "";
+          }
+          if (spinEl) spinEl.remove();
+
+          const valImgEl = document.getElementById(`val_img_${photo.id}`);
+          const valSpinEl = document.getElementById(`val_spinner_${photo.id}`);
+          if (valImgEl && photo.preview_url) {
+            valImgEl.src = photo.preview_url;
+            valImgEl.style.display = "";
+          }
+          if (valSpinEl) valSpinEl.remove();
+        })
+      );
+      syncSessionToServer();
+    } catch (err) {
+      console.error("ensureSessionPreviews error:", err);
+    } finally {
+      isFetchingSessionPreviews = false;
     }
   }
 
@@ -1191,7 +1245,14 @@ document.addEventListener("DOMContentLoaded", async () => {
 
       card.innerHTML = `
         <div class="photo-card-preview">
-          <img src="${photo.preview_url || ""}" alt="Photo ${idx + 1}" id="img_${photo.id}">
+          ${photo.preview_url ? `
+            <img src="${photo.preview_url}" alt="Photo ${idx + 1}" id="img_${photo.id}">
+          ` : `
+            <div class="preview-spinner" id="spinner_${photo.id}">
+              <div class="spinner" style="width: 24px; height: 24px; border-width: 2px;"></div>
+            </div>
+            <img src="" alt="Photo ${idx + 1}" id="img_${photo.id}" style="display: none;">
+          `}
         </div>
         <div class="photo-card-body">
           <div class="photo-title-row">
@@ -1217,6 +1278,18 @@ document.addEventListener("DOMContentLoaded", async () => {
           </div>
         </div>
       `;
+
+      if (!photo.preview_url) {
+        fetchPreviewForPhoto(photo, page.scan_id).then(() => {
+          const imgEl = document.getElementById(`img_${photo.id}`);
+          const spinEl = document.getElementById(`spinner_${photo.id}`);
+          if (imgEl && photo.preview_url) {
+            imgEl.src = photo.preview_url;
+            imgEl.style.display = "";
+          }
+          if (spinEl) spinEl.remove();
+        });
+      }
 
       card.addEventListener("click", (e) => {
         if (e.target.tagName !== "INPUT" && e.target.tagName !== "BUTTON") {
@@ -1281,11 +1354,14 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   async function updateCardPreview(photo, scanId) {
-    await fetchPreviewForPhoto(photo, scanId);
+    await fetchPreviewForPhoto(photo, scanId, true);
     const imgEl = document.getElementById(`img_${photo.id}`);
+    const spinEl = document.getElementById(`spinner_${photo.id}`);
     if (imgEl && photo.preview_url) {
       imgEl.src = photo.preview_url;
+      imgEl.style.display = "";
     }
+    if (spinEl) spinEl.remove();
   }
 
   function onSelectionChanged(selectedId) {
@@ -1344,6 +1420,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     renderValidationTabs();
     renderValidationGrid("all");
     updateValidationStats();
+
+    ensureSessionPreviews();
 
     validationModal.classList.add("open");
   }
@@ -1415,7 +1493,14 @@ document.addEventListener("DOMContentLoaded", async () => {
           <span class="validation-page-pill">${t("page")} ${page.pageNumber}</span>
         </div>
         <div class="validation-card-preview">
-          <img src="${photo.preview_url || ""}" alt="${photo.filename || "Photo"}" id="val_img_${photo.id}">
+          ${photo.preview_url ? `
+            <img src="${photo.preview_url}" alt="${photo.filename || "Photo"}" id="val_img_${photo.id}">
+          ` : `
+            <div class="preview-spinner" id="val_spinner_${photo.id}">
+              <div class="spinner" style="width: 28px; height: 28px; border-width: 2px;"></div>
+            </div>
+            <img src="" alt="${photo.filename || "Photo"}" id="val_img_${photo.id}" style="display: none;">
+          `}
         </div>
         <div class="validation-card-body">
           <input type="text" class="photo-title-input val-name-input" value="${photo.filename || ""}" placeholder="${t("filenamePlaceholder")}">
@@ -1430,6 +1515,18 @@ document.addEventListener("DOMContentLoaded", async () => {
           </button>
         </div>
       `;
+
+      if (!photo.preview_url) {
+        fetchPreviewForPhoto(photo, page.scan_id).then(() => {
+          const img = card.querySelector(`#val_img_${photo.id}`);
+          const spinner = card.querySelector(`#val_spinner_${photo.id}`);
+          if (img && photo.preview_url) {
+            img.src = photo.preview_url;
+            img.style.display = "";
+          }
+          if (spinner) spinner.remove();
+        });
+      }
 
       // Checkbox listener
       const chk = card.querySelector(".val-checkbox");
@@ -1449,20 +1546,32 @@ document.addEventListener("DOMContentLoaded", async () => {
       // Rotate CCW
       card.querySelector(".val-btn-ccw").addEventListener("click", async () => {
         photo.rotation_90_steps = ((photo.rotation_90_steps || 0) + 3) % 4;
-        await fetchPreviewForPhoto(photo, page.scan_id);
+        await fetchPreviewForPhoto(photo, page.scan_id, true);
         const img = card.querySelector(`#val_img_${photo.id}`);
-        if (img && photo.preview_url) img.src = photo.preview_url;
+        const spinner = card.querySelector(`#val_spinner_${photo.id}`);
+        if (img && photo.preview_url) {
+          img.src = photo.preview_url;
+          img.style.display = "";
+        }
+        if (spinner) spinner.remove();
         // Also sync to active canvas if on same page
         if (activePageIndex === pageIndex) renderCards();
+        syncSessionToServer();
       });
 
       // Rotate CW
       card.querySelector(".val-btn-cw").addEventListener("click", async () => {
         photo.rotation_90_steps = ((photo.rotation_90_steps || 0) + 1) % 4;
-        await fetchPreviewForPhoto(photo, page.scan_id);
+        await fetchPreviewForPhoto(photo, page.scan_id, true);
         const img = card.querySelector(`#val_img_${photo.id}`);
-        if (img && photo.preview_url) img.src = photo.preview_url;
+        const spinner = card.querySelector(`#val_spinner_${photo.id}`);
+        if (img && photo.preview_url) {
+          img.src = photo.preview_url;
+          img.style.display = "";
+        }
+        if (spinner) spinner.remove();
         if (activePageIndex === pageIndex) renderCards();
+        syncSessionToServer();
       });
 
       // Adjust in canvas

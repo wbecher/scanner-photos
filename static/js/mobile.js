@@ -495,7 +495,7 @@ document.addEventListener("DOMContentLoaded", () => {
           margin_px: 0,
           filename: `Photo_${String(existingCount + idx + 1).padStart(3, "0")}`,
           included: true,
-          preview_url: null
+          preview_url: p.preview_url || null
         }));
       }
     } catch (e) {

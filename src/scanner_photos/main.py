@@ -402,6 +402,20 @@ def api_detect(req: DetectRequest):
         sensitivity=req.sensitivity,
         has_borders=req.has_borders
     )
+    # Generate immediate preview thumbnail for each detected photo
+    for p in detected:
+        try:
+            cropped = crop_and_deskew(img, corners=p["corners"])
+            ph, pw = cropped.shape[:2]
+            if max(ph, pw) > 500:
+                scale = 500.0 / max(ph, pw)
+                cropped = cv2.resize(cropped, (int(pw * scale), int(ph * scale)), interpolation=cv2.INTER_AREA)
+            _, buf = cv2.imencode(".jpg", cropped, [cv2.IMWRITE_JPEG_QUALITY, 85])
+            b64 = base64.b64encode(buf.tobytes()).decode("utf-8")
+            p["preview_url"] = f"data:image/jpeg;base64,{b64}"
+        except Exception:
+            p["preview_url"] = None
+
     h, w = img.shape[:2]
     return {
         "image_width": w,

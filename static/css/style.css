@@ -941,6 +941,14 @@ header::-webkit-scrollbar {
   transition: transform 0.2s ease;
 }
 
+.preview-spinner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+
 .validation-card-body {
   padding: 10px;
   display: flex;

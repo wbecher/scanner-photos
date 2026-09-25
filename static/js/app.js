@@ -248,8 +248,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         id: rp.id,
         scan_id: rp.scan_id,
         pageNumber: rp.pageNumber || (i + 1),
-        imageWidth: rp.imageWidth || img.naturalWidth,
-        imageHeight: rp.imageHeight || img.naturalHeight,
+        imageWidth: img.naturalWidth || rp.imageWidth,
+        imageHeight: img.naturalHeight || rp.imageHeight,
         imageElement: img,
         photos: rp.photos || []
       });

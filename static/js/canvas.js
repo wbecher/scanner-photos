@@ -50,8 +50,8 @@ class ScanCanvas {
 
   setImage(imageElement, originalWidth, originalHeight) {
     this.image = imageElement;
-    this.imageWidth = originalWidth || imageElement.naturalWidth || imageElement.width;
-    this.imageHeight = originalHeight || imageElement.naturalHeight || imageElement.height;
+    this.imageWidth = (imageElement && imageElement.naturalWidth) || originalWidth || (imageElement && imageElement.width) || 0;
+    this.imageHeight = (imageElement && imageElement.naturalHeight) || originalHeight || (imageElement && imageElement.height) || 0;
     this.fitToScreen();
   }
 

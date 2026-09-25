@@ -33,7 +33,7 @@ if [ "$NO_BROWSER" -eq 0 ]; then
 fi
 
 # Start uvicorn server in background listening on all network interfaces (0.0.0.0)
-.venv/bin/uvicorn scanner_photos.main:app --host 0.0.0.0 --port $PORT &
+.venv/bin/uvicorn scanner_photos.main:app --host 0.0.0.0 --port $PORT --reload &
 SERVER_PID=$!
 
 # Trap signals to kill server on script exit

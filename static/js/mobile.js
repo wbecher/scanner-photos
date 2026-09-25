@@ -464,6 +464,9 @@ document.addEventListener("DOMContentLoaded", () => {
     const pageNumber = sessionPages.length + 1;
     let detectedPhotos = [];
 
+    let imageWidth = 0;
+    let imageHeight = 0;
+
     // Trigger auto-detect for detected crop boxes
     try {
       const detRes = await fetch("/api/detect", {
@@ -478,6 +481,10 @@ document.addEventListener("DOMContentLoaded", () => {
       });
       if (detRes.ok) {
         const detData = await detRes.json();
+        if (detData.image_width && detData.image_height) {
+          imageWidth = detData.image_width;
+          imageHeight = detData.image_height;
+        }
         const existingCount = sessionPages.reduce((acc, p) => acc + (p.photos ? p.photos.length : 0), 0);
         detectedPhotos = (detData.photos || []).map((p, idx) => ({
           id: p.id || `photo_p${pageNumber}_${idx + 1}`,
@@ -495,12 +502,27 @@ document.addEventListener("DOMContentLoaded", () => {
       console.warn("Auto-detect fallback:", e);
     }
 
+    if (!imageWidth || !imageHeight) {
+      try {
+        const img = new Image();
+        img.src = `/api/scans/${scanId}`;
+        await new Promise((resolve) => {
+          img.onload = resolve;
+          img.onerror = resolve;
+        });
+        if (img.naturalWidth && img.naturalHeight) {
+          imageWidth = img.naturalWidth;
+          imageHeight = img.naturalHeight;
+        }
+      } catch (err) {}
+    }
+
     const newPage = {
       id: `page_${Date.now()}_${pageNumber}`,
       scan_id: scanId,
       pageNumber: pageNumber,
-      imageWidth: 1800,
-      imageHeight: 2400,
+      imageWidth: imageWidth || 1800,
+      imageHeight: imageHeight || 2400,
       photos: detectedPhotos
     };
 

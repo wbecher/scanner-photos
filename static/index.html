@@ -321,12 +321,22 @@
         <h3 data-i18n="connectTabletTitle">Connect Tablet / Remote Access</h3>
         <button id="closeConnectTabletBtn" class="tool-btn">✕</button>
       </div>
-      <div class="modal-body" style="display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 20px;">
-        <p style="font-size: 0.9rem; color: var(--text-muted); line-height: 1.4;" data-i18n="connectTabletDesc">
-          Scan this QR code with your tablet camera or open the link below on the same Wi-Fi:
+      <div class="modal-body" style="display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 20px;">
+        <!-- Remote Mode Tabs -->
+        <div style="display: flex; gap: 8px; width: 100%;">
+          <button id="qrTabMobileBtn" class="btn btn-primary" style="flex: 1; justify-content: center; font-size: 0.82rem; padding: 7px 10px;">
+            📱 <span data-i18n="qrTabMobile">Smartphone Remote</span>
+          </button>
+          <button id="qrTabFullBtn" class="btn btn-secondary" style="flex: 1; justify-content: center; font-size: 0.82rem; padding: 7px 10px;">
+            📟 <span data-i18n="qrTabFull">Full Tablet / PC</span>
+          </button>
+        </div>
+
+        <p id="qrDescText" style="font-size: 0.88rem; color: var(--text-muted); line-height: 1.4;" data-i18n="connectMobileDesc">
+          Scan this QR code with your iPhone or Android camera to open the fast sequential scanning console:
         </p>
         <div id="tabletQrContainer" class="qr-code-box">
-          <img id="tabletQrImage" src="/api/qrcode" alt="QR Code" width="200" height="200" style="border-radius: 8px; background: white; padding: 8px; display: block; margin: 0 auto;" />
+          <img id="tabletQrImage" src="/api/qrcode?path=/mobile" alt="QR Code" width="200" height="200" style="border-radius: 8px; background: white; padding: 8px; display: block; margin: 0 auto;" />
         </div>
         <div class="remote-url-display" style="width: 100%;">
           <input type="text" id="tabletRemoteUrlInput" readonly value="Loading..." style="text-align: center; font-weight: 600; font-size: 0.95rem; width: 100%; padding: 8px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-tertiary); color: var(--text-main);" />

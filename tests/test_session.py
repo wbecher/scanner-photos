@@ -114,3 +114,34 @@ def test_websocket_connection_and_events():
         assert res.json()["session"]["pages"] == []
 
 
+def test_websocket_mobile_session_sync():
+    with client.websocket_connect("/ws") as ws:
+        # 1. Create demo scan
+        demo_res = client.post("/api/demo-scan", json={"page_index": 1})
+        scan_id = demo_res.json()["scan_id"]
+
+        # 2. Send sync_session via WS (as mobile client does)
+        new_session = {
+            "active_page_index": 0,
+            "pages": [
+                {
+                    "id": "mobile_page_1",
+                    "scan_id": scan_id,
+                    "pageNumber": 1,
+                    "photos": []
+                }
+            ]
+        }
+        ws.send_json({
+            "type": "sync_session",
+            "session": new_session,
+            "sender_id": "mobile_client"
+        })
+
+        # 3. Verify session was updated and persisted on server
+        res = client.get("/api/session")
+        assert res.status_code == 200
+        assert len(res.json()["session"]["pages"]) == 1
+        assert res.json()["session"]["pages"][0]["id"] == "mobile_page_1"
+
+

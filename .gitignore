@@ -26,6 +26,7 @@ share/python-wheels/
 venv/
 ENV/
 env/
+.agents
 
 # Testing & Cache
 .pytest_cache/

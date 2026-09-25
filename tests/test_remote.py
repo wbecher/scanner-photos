@@ -6,6 +6,25 @@ from scanner_photos.main import app, get_local_ip
 
 client = TestClient(app)
 
+def test_mobile_route():
+    res = client.get("/mobile")
+    assert res.status_code == 200
+    assert "text/html" in res.headers.get("content-type", "")
+    assert "Scanner Remote" in res.text
+
+    res_slash = client.get("/mobile/")
+    assert res_slash.status_code == 200
+
+
+def test_api_scanners_response():
+    res = client.get("/api/scanners")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["status"] == "ok"
+    assert "scanners" in data
+    assert "sane_available" in data
+
+
 def test_api_server_info():
     res = client.get("/api/server-info")
     assert res.status_code == 200
@@ -14,6 +33,9 @@ def test_api_server_info():
     assert "local_ip" in data
     assert data["port"] == 8321
     assert data["remote_url"].startswith("http://")
+    assert "mobile_url" in data
+    assert data["mobile_url"].endswith("/mobile")
+    assert "all_mobile_urls" in data
     assert "has_qrcode" in data
 
 
@@ -24,6 +46,11 @@ def test_api_qrcode():
         assert res.status_code == 200
         assert "image/svg+xml" in res.headers.get("content-type", "")
         assert b"<svg" in res.content
+
+        # Test with path parameter
+        res_mobile = client.get("/api/qrcode?path=/mobile")
+        assert res_mobile.status_code == 200
+        assert "image/svg+xml" in res_mobile.headers.get("content-type", "")
     else:
         assert res.status_code in [200, 404]
 

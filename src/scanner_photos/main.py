@@ -267,6 +267,7 @@ def api_list_scanners():
     devices = list_devices()
     sane_ok = is_sane_available()
     return {
+        "status": "ok",
         "sane_available": sane_ok,
         "scanners": devices,
         "default_device": devices[0]["id"] if devices else None
@@ -280,8 +281,9 @@ def api_scan(
     mode: str = Body("Color")
 ):
     try:
+        clean_dev = device_id.strip() if device_id and isinstance(device_id, str) and device_id.strip() else None
         out_path = perform_scan(
-            device_id=device_id,
+            device_id=clean_dev,
             resolution=resolution,
             mode=mode,
             output_dir=SCANS_DIR
@@ -686,16 +688,21 @@ def api_server_info():
         "local_ips": local_ips,
         "port": port,
         "remote_url": f"http://{primary_ip}:{port}",
+        "mobile_url": f"http://{primary_ip}:{port}/mobile",
         "all_urls": [f"http://{ip}:{port}" for ip in local_ips],
+        "all_mobile_urls": [f"http://{ip}:{port}/mobile" for ip in local_ips],
         "hostname": socket.gethostname(),
         "has_qrcode": has_qr
     }
 
 
 @app.get("/api/qrcode")
-def api_qrcode(host: Optional[str] = None):
+def api_qrcode(host: Optional[str] = None, path: Optional[str] = None):
     ip = host or get_local_ip()
-    url = f"http://{ip}:8321"
+    target_path = (path or "").strip()
+    if target_path and not target_path.startswith("/"):
+        target_path = "/" + target_path
+    url = f"http://{ip}:8321{target_path}"
     if shutil.which("qrencode"):
         try:
             res = subprocess.run(
@@ -858,6 +865,16 @@ async def websocket_endpoint(websocket: WebSocket):
         session_manager.disconnect(websocket)
     except Exception:
         session_manager.disconnect(websocket)
+
+
+# Serve mobile remote web interface
+@app.get("/mobile")
+@app.get("/mobile/")
+def get_mobile_page():
+    mobile_html_path = os.path.join(STATIC_DIR, "mobile.html")
+    if os.path.exists(mobile_html_path):
+        return FileResponse(mobile_html_path, media_type="text/html")
+    raise HTTPException(status_code=404, detail="Mobile page not found")
 
 
 # Serve static files

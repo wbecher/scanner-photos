@@ -116,27 +116,27 @@ Run the launcher script:
 
 ---
 
-## 📱 Remote Tablet & Server Workflow
+## 📱 Remote Smartphone & Tablet Workflows
 
-You can use your PC as the central scanning and storage server, while using a tablet (iPad, Android, etc.) as your portable scanning station next to the flatbed scanner:
+You can use your PC as the central scanning and storage workstation while controlling the flatbed scanner remotely from your smartphone or tablet next to the machine:
 
-1. **Start the server on your PC**:
-   ```bash
-   ./run.sh
-   # Or without opening a local browser on PC:
-   ./run.sh --no-browser
-   ```
-2. **Connect your tablet**:
-   - Point your tablet's camera at the **QR Code** printed in your PC's terminal (or click the **Tablet** button in the top bar to display the QR code).
-   - Alternatively, open `http://<YOUR_PC_IP>:8321` in your tablet's web browser (e.g. Safari or Chrome).
-3. **Scan and inspect from the tablet**:
-   - Tap **Scan Flatbed** from the tablet. The PC will trigger the physical USB scanner.
-   - Adjust crop boxes with fluid touch gestures: drag corner handles with fingers (optimized 24px touch targets), **pinch-to-zoom**, and **two-finger pan**.
-   - Browse and select destination folders on your PC directly from the tablet using the integrated **Web Folder Browser**.
-   - Validate and export photos: all processed, deskewed high-resolution photos are saved directly to your PC's hard drive!
+### 🤳 Smartphone Remote Console (`/mobile`) — Rapid Sequential Scanning
+Designed specifically for one-handed operation on iPhone and Android smartphones while standing in front of the scanner:
+1. **Instant QR Pairing**: Click **Tablet** in the desktop top bar and select the **Smartphone Remote** tab, or point your phone camera at the QR code.
+2. **One-Touch Sequential Scanning**: Tap the prominent **Scan Next Page** button.
+3. **Tactile & Audio Feedback**: Receive haptic vibration and a chime notification as soon as the scan finishes, signaling that you can immediately swap prints on the flatbed glass.
+4. **Session Reel**: View thumbnails of scanned pages and discard misaligned scans directly from the phone.
+5. **Desktop Handoff**: All pages are cached and synchronized to your PC hard drive in real time via WebSocket. When you finish scanning your stack of photos, return to your PC to fine-tune crops, deskew angles, and batch export!
+
+---
+
+### 📟 Full Tablet Interface — Touch Editing Station
+For iPad and Android tablets (10"+ displays in landscape) placed near the workstation:
+- Open `http://<YOUR_PC_IP>:8321` on Safari or Chrome.
+- Full multi-point canvas with 24px finger touch targets, pinch-to-zoom, two-finger panning, and integrated server folder browser.
 
 > [!TIP]
-> Ensure your PC and tablet are connected to the same Wi-Fi router. If you have an active firewall on Linux (`ufw`), ensure port 8321 is allowed:
+> Ensure your PC and phone/tablet are connected to the same Wi-Fi network. If you have an active firewall on Linux (`ufw`), ensure port 8321 is allowed:
 > ```bash
 > sudo ufw allow 8321/tcp
 > ```

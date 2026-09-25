@@ -594,19 +594,57 @@ document.addEventListener("DOMContentLoaded", async () => {
     settingBrowseDirBtn.addEventListener("click", () => openFolderBrowser(settingOutputDir));
   }
 
-  // Tablet Connect Handlers
+  // Tablet / Mobile Connect Handlers
+  const qrTabMobileBtn = document.getElementById("qrTabMobileBtn");
+  const qrTabFullBtn = document.getElementById("qrTabFullBtn");
+  const qrDescText = document.getElementById("qrDescText");
+  let cachedServerInfo = null;
+  let activeQrTab = "mobile";
+
+  function updateQrView() {
+    if (activeQrTab === "mobile") {
+      if (qrTabMobileBtn) qrTabMobileBtn.className = "btn btn-primary";
+      if (qrTabFullBtn) qrTabFullBtn.className = "btn btn-secondary";
+      if (qrDescText) qrDescText.textContent = t("connectMobileDesc");
+      const mobUrl = cachedServerInfo && cachedServerInfo.mobile_url ? cachedServerInfo.mobile_url : `${window.location.origin}/mobile`;
+      tabletRemoteUrlInput.value = mobUrl;
+      tabletQrImage.src = `/api/qrcode?path=/mobile&t=${Date.now()}`;
+    } else {
+      if (qrTabMobileBtn) qrTabMobileBtn.className = "btn btn-secondary";
+      if (qrTabFullBtn) qrTabFullBtn.className = "btn btn-primary";
+      if (qrDescText) qrDescText.textContent = t("connectTabletDesc");
+      const fullUrl = cachedServerInfo && cachedServerInfo.remote_url ? cachedServerInfo.remote_url : window.location.origin;
+      tabletRemoteUrlInput.value = fullUrl;
+      tabletQrImage.src = `/api/qrcode?t=${Date.now()}`;
+    }
+  }
+
+  if (qrTabMobileBtn) {
+    qrTabMobileBtn.addEventListener("click", () => {
+      activeQrTab = "mobile";
+      updateQrView();
+    });
+  }
+
+  if (qrTabFullBtn) {
+    qrTabFullBtn.addEventListener("click", () => {
+      activeQrTab = "full";
+      updateQrView();
+    });
+  }
+
   if (connectTabletBtn) {
     connectTabletBtn.addEventListener("click", async () => {
       try {
         const res = await fetch("/api/server-info");
         const info = await res.json();
         if (info.status === "ok") {
-          tabletRemoteUrlInput.value = info.remote_url;
-          tabletQrImage.src = `/api/qrcode?t=${Date.now()}`;
+          cachedServerInfo = info;
         }
       } catch (err) {
-        tabletRemoteUrlInput.value = window.location.href;
+        console.warn("Server info error:", err);
       }
+      updateQrView();
       connectTabletModal.classList.add("open");
     });
   }
